@@ -11,7 +11,7 @@ function createDF(list_of_dataseries, list_of_names)
 end
 
 function export_dataframe(df, name)
-    CSV.write("$(pwd())\\results\\$name.csv", df)
+    CSV.write("$(pwd())/results/$name.csv", df)
 end
 
 function easy_export(list_of_dataseries, list_of_names, filename)

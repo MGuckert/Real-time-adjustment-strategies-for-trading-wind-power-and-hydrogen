@@ -8,7 +8,7 @@ negative_prices = false
 #----------------------------------IMPORTS---------------------------------
 #--------------------------------------------------------------------------
 all_data = DataFrame(CSV.File("./data/2020_data.csv"))
-include("hydrogen_prices.jl")
+include("./hydrogen_prices.jl")
 
 
 lambda_F = all_data[:, "forward_RE"]

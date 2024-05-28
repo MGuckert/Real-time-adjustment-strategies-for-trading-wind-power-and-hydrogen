@@ -31,7 +31,7 @@ CBLUE = (0.70196078, 0.83137255, 1)  # (179, 212, 255)
 TOP_DOMAIN = 53.32  # 90%
 
 # Main datafile
-DATAFILE = "./2020_data.csv"
+DATAFILE = "./data/2020_data.csv"
 
 
 def import_consts(negative_prices=False):

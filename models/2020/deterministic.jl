@@ -4,7 +4,7 @@ using JuMP
 using DataFrames
 using CSV
 
-include("../data_loader_2020.jl")
+include("../../data/data_loader_2020.jl")
 
 
 function get_deterministic_plan(bidding_start)
@@ -77,7 +77,7 @@ for i in 1:24
 end
 
 # # #---------------------------EXPORT RESULTS--------------------------------
-include("../data_export.jl")
+include("../../data/data_export.jl")
 
 data = [
     all_forward_bids,
