@@ -4,8 +4,7 @@ using JuMP
 using DataFrames
 using CSV
 
-include("../data_loader_2020.jl")
-
+include("./data_loader_2020.jl")
 
 function get_initial_plan(training_period_length, bidding_start)
     # period length is the amount of timesteps used for training
@@ -206,7 +205,7 @@ for i in 1:1
     data = vcat([qF[i] for i in 1:3], [qH[i] for i in 1:3])
     names = vcat(["qF$i" for i in 1:3], ["qH$i" for i in 1:3])
 
-    filename = "2020/comparing_architecture/GENERAL_forecast_model_mo$n_months"
+    filename = "2020/GA-$n_months"
     easy_export(data, names, filename,)
 
 end

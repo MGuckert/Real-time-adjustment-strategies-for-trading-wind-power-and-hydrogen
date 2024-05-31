@@ -4,7 +4,7 @@ using JuMP
 using DataFrames
 using CSV
 
-include("../data_loader_2020.jl")
+include("./data_loader_2020.jl")
 
 
 function get_initial_plan(training_period_length, bidding_start, burned=0, two_price=true)

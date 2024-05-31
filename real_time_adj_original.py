@@ -1,6 +1,7 @@
 import copy
 import numpy as np
 
+from constants import *
 
 def get_hydro_opt(d, lh, ls, lb, max_elec):
     """
@@ -82,7 +83,6 @@ def apply_upwards_adj(results_to_copy, idx_start, idx_end, printing=False):
                 - up * prices_B[t]
                 - missing_production * penalty
         )
-
         forward_bids.append(forward_bid)
         ds.append(d)
         h_prods.append(h_adj)

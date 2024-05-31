@@ -4,7 +4,7 @@ using JuMP
 using DataFrames
 using CSV
 
-include("../../data/data_loader_2020.jl")
+include("./data_loader_2020.jl")
 
 
 function get_deterministic_plan(bidding_start)
@@ -56,6 +56,7 @@ all_hydrogen_productions = []
 
 for i in 1:(365)
     bidding_start = length(lambda_F) - (validation_period) + (i - 1) * 24 # - 24
+    print(bidding_start)
 
     forward_bids, hydrogen_production = get_deterministic_plan(bidding_start)
 
@@ -77,7 +78,7 @@ for i in 1:24
 end
 
 # # #---------------------------EXPORT RESULTS--------------------------------
-include("../../data/data_export.jl")
+include("../data_export.jl")
 
 data = [
     all_forward_bids,

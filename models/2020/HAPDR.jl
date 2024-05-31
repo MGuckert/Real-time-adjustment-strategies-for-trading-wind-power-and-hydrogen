@@ -4,7 +4,7 @@ using JuMP
 using DataFrames
 using CSV
 
-include("../data_loader_2020.jl")
+include("./data_loader_2020.jl")
 top_domain = 53.32 # 90% quantile
 
 

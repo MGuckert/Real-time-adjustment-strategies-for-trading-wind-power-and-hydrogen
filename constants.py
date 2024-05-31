@@ -13,8 +13,8 @@ NOMINAL_WIND = 10  # Nominal wind power
 rho_H = 20  # Power to hydrogen efficiency of the electrolyzer [kg/MWh]
 eta_storage = 0.88  # Storage efficiency of the hydrogen storage [kg/MWh]
 lambda_H = 2.5  # Hydrogen price [€/kg]
-H = 50  # Minimum daily hydrogen production [kg]
-P_H = 10 / rho_H  # Maximal power consumption capacity of the electrolyzer [MWh]
+H_MIN = 50  # Minimum daily hydrogen production [kg]
+P_H = 10  # Maximal power consumption capacity of the electrolyzer [MWh]
 PRICE_H = 35.2  # Hydrogen price [€/MWh]
 
 # Define color constants using RGB normalized to [0, 1] scale
@@ -34,17 +34,21 @@ TOP_DOMAIN = 53.32  # 90%
 DATAFILE = "./data/2020_data.csv"
 
 
-def import_consts(negative_prices=False):
+def import_consts(start_date="2020-01-01", end_date="2022-01-01", negative_prices=False):
     """
     Import data and set constants for the analysis.
 
     Args:
+        start_date (str): Start date of the analysis.
+        end_date (str): End date of the analysis.
         negative_prices (bool): If True, allows for negative prices.
 
     Returns:
         tuple: Various datasets and constants used in the analysis.
     """
     all_data = pd.read_csv(DATAFILE)
+    all_data.index = pd.date_range(start="2020-01-01", periods=len(all_data), freq="h")
+    all_data = all_data.loc[start_date:end_date]
     prices_B = np.maximum(all_data["UP"].to_numpy(), 0)
     prices_S = np.maximum(all_data["DW"].to_numpy(), 0)
     prices_F = np.maximum(all_data["forward_RE"].to_numpy(), 0)
@@ -65,6 +69,6 @@ def import_consts(negative_prices=False):
 
     return (
         prices_B, prices_S, prices_F, prices_forecast, features,
-        features_red, realized, price_H, (P_H*rho_H), NOMINAL_WIND,
-        penalty, H, forecast_production
+        features_red, realized, price_H, P_H, NOMINAL_WIND,
+        penalty, H_MIN, forecast_production
     )
