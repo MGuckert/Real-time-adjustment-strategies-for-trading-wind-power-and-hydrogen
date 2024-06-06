@@ -3,26 +3,24 @@ import numpy as np
 
 from constants import *
 
-def get_hydro_opt(d, lh, ls, lb, max_elec):
+def get_hydro_opt(deviation, selling_price, buying_price):
     """
     Get optimal adjustment at given balancing prices.
 
     Args:
-        d (float): Some value (to be defined).
-        lh (float): High price limit.
-        ls (float): Low sell price.
-        lb (float): Low buy price.
-        max_elec (float): Maximum electricity.
+        deviation (float): Some value (to be defined).
+        selling_price (float): Low sell price.
+        buying_price (float): Low buy price.
 
     Returns:
         float: Optimal adjustment value.
     """
-    if ls > lh:
+    if selling_price > PRICE_H:
         return 0
-    elif lb < lh:
-        return max_elec
+    elif buying_price < PRICE_H:
+        return P_H
     else:
-        return np.minimum(max_elec, np.maximum(0, d))
+        return np.minimum(P_H, np.maximum(0, deviation))
 
 
 def apply_upwards_adj(results_to_copy, idx_start, idx_end, printing=False):
@@ -63,7 +61,7 @@ def apply_upwards_adj(results_to_copy, idx_start, idx_end, printing=False):
 
         d = realized[t] - forward_bid
 
-        opt_h = get_hydro_opt(d, price_H, prices_S[t], prices_B[t], max_elec)
+        opt_h = get_hydro_opt(d, prices_S[t], prices_B[t])
 
         if (opt_h > h_prod):
             if printing:
@@ -131,6 +129,9 @@ def apply_up_and_dw_adj(results_to_copy, idx_start, idx_end, printing=False):
     missing_production = 0
     daily_count = 0
 
+    if printing:
+        print(prices_B[idx_start:idx_start+10])
+
     for i, t in enumerate(range(idx_start, idx_end)):
         hour_of_day = (i % 24)
         if (hour_of_day == 0) and t != idx_start:
@@ -142,7 +143,7 @@ def apply_up_and_dw_adj(results_to_copy, idx_start, idx_end, printing=False):
 
         d = realized[t] - forward_bid
 
-        opt_h = get_hydro_opt(d, price_H, prices_S[t], prices_B[t], max_elec)
+        opt_h = get_hydro_opt(d, prices_S[t], prices_B[t])
 
         if (opt_h > h_prod):
             if printing:
@@ -237,7 +238,7 @@ def apply_risky_policy(results_to_copy, idx_start, idx_end, printing=False):
 
         d = realized[t] - forward_bid
 
-        opt_h = get_hydro_opt(d, price_H, prices_S[t], prices_B[t], max_elec)
+        opt_h = get_hydro_opt(d, prices_S[t], prices_B[t])
 
         remaining_hours = 23 - hour_of_day
         if hour_of_day == 23:
