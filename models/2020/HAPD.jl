@@ -187,7 +187,7 @@ print("\n---------------------------AF------------------------------")
 print("\n---------------------------AF------------------------------")
 print("\n\n")
 # ---------------------------AF------------------------------
-for i in 1:12
+for i in 12:12
     n_months = i
     training_period = month * n_months
     validation_period = year
@@ -200,7 +200,7 @@ for i in 1:12
     data = vcat([qFs[d][i] for i in 1:(n_features+1) for d in 1:3], [qHs[d][i] for i in 1:(n_features+1) for d in 1:3])
     names = vcat(["qF$(d)_$i" for i in 1:(n_features+1) for d in 1:3], ["qH$(d)_$i" for i in 1:(n_features+1) for d in 1:3])
 
-    filename = "2020/pricedomains/hourly_PRICEDOMAIN_mo$n_months"
+    filename = "2020/TEST-HAPD-AF-$n_months-H-MIN-100"
     easy_export(data, names, filename,)
 
 end

@@ -56,7 +56,6 @@ all_hydrogen_productions = []
 
 for i in 1:(365)
     bidding_start = length(lambda_F) - (validation_period) + (i - 1) * 24 # - 24
-    print(bidding_start)
 
     forward_bids, hydrogen_production = get_deterministic_plan(bidding_start)
 

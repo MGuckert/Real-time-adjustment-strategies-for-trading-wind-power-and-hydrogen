@@ -64,11 +64,10 @@ def import_consts(start_date="2020-01-01", end_date="2022-01-01", negative_price
     fm_df = pd.read_csv("./results/2020_forecast_model.csv")
     forecast_production = fm_df.loc[:, "forecast_production"]
 
-    price_H = 35.2
     penalty = np.quantile(prices_B, 0.95)
 
     return (
         prices_B, prices_S, prices_F, prices_forecast, features,
-        features_red, realized, price_H, P_H, NOMINAL_WIND,
+        features_red, realized, PRICE_H, P_H, NOMINAL_WIND,
         penalty, H_MIN, forecast_production
     )

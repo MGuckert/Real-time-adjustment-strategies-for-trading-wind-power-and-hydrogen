@@ -519,11 +519,6 @@ def test_price_domain(df, idx_start, idx_end, general=False, fm=False, reduced_f
      realized, price_H, max_elec, nominal_wind, penalty, min_production,
      forecast_production) = import_consts()
 
-    print("prices_F", prices_F[idx_start:idx_end])
-    print("realized", realized[idx_start:idx_end])
-    print("prices_S", prices_S[idx_start:idx_end])
-    print("prices_B", prices_B[idx_start:idx_end])
-
     forward_bids = []
     ds = []
     h_prods = []
@@ -589,11 +584,6 @@ def test_price_domain(df, idx_start, idx_end, general=False, fm=False, reduced_f
         h_prod = np.minimum(max_elec, h_prod)
         daily_count += h_prod
         settlementd = realized[i] - forward_bid - h_prod
-        print("realized[i]", realized[i])
-        print("forward_bid", forward_bid)
-        print("settlementd", settlementd)
-        print("daily_count", daily_count)
-
         up = np.maximum(-settlementd, 0)
         dw = np.maximum(settlementd, 0)
         obj = (

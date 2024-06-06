@@ -43,7 +43,7 @@ n_features = size(x)[2]
 nominal_wind_capacity = 10.0
 max_wind_capacity = nominal_wind_capacity
 max_elec_capacity = 10.0
-min_production = 50
+min_production = 50.0
 
 deterministic_forecast = all_data[:, ["production_FC"]] .* nominal_wind_capacity
 E_real = all_data[:, "production_RE"] .* nominal_wind_capacity
