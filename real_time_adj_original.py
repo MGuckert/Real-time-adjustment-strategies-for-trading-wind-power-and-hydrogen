@@ -102,7 +102,7 @@ def apply_upwards_adj(results_to_copy, idx_start, idx_end, printing=False):
     return results
 
 
-def apply_up_and_dw_adj(results_to_copy, idx_start, idx_end, printing=False):
+def apply_up_and_dw_adj(results_to_copy, idx_start, idx_end, h_min, printing=False):
     """
     Perform complete evaluation for upwards and downwards adjustment performed on a given model.
 
@@ -118,6 +118,8 @@ def apply_up_and_dw_adj(results_to_copy, idx_start, idx_end, printing=False):
     results = copy.deepcopy(results_to_copy)
     (prices_B, prices_S, prices_F, prices_forecast, features, features_red, realized, price_H, max_elec,
      nominal_wind, penalty, min_production, forecast_production) = import_consts()
+
+    min_production = h_min
 
     forward_bids = []
     ds = []

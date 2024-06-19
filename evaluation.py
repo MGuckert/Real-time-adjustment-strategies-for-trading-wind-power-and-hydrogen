@@ -346,7 +346,7 @@ def test_initial_plan_changing_qs(init_filename, cqs_filename, idx_start, idx_en
     return results
 
 
-def test_fixed(forward, hydrogen, idx_start, idx_end):
+def test_fixed(forward, hydrogen, idx_start, idx_end, h_min):
     """
     Perform complete evaluation for deterministic with all bids accepted or hindsight models.
 
@@ -362,6 +362,8 @@ def test_fixed(forward, hydrogen, idx_start, idx_end):
     (prices_B, prices_S, prices_F, prices_forecast, features, features_red,
      realized, price_H, max_elec, nominal_wind, penalty, min_production,
      forecast_production) = import_consts()
+
+    min_production = h_min
 
     forward_bids = []
     ds = []
@@ -500,7 +502,7 @@ def test_det(forward, hydrogen, idx_start, idx_end):
     return results
 
 
-def test_price_domain(df, idx_start, idx_end, general=False, fm=False, reduced_features=False):
+def test_price_domain(df, idx_start, idx_end, h_min, general=False, fm=False, reduced_features=False):
     """
     Perform complete evaluation for general and hourly models with price domains in a given time period.
 
@@ -518,6 +520,8 @@ def test_price_domain(df, idx_start, idx_end, general=False, fm=False, reduced_f
     (prices_B, prices_S, prices_F, prices_forecast, features, features_red,
      realized, price_H, max_elec, nominal_wind, penalty, min_production,
      forecast_production) = import_consts()
+
+    min_production = h_min
 
     forward_bids = []
     ds = []
