@@ -115,7 +115,7 @@ names = [
     "hydrogen production",
     "forward bid"
 ]
-filename = "2020/optimal_everything"
+filename = "2020/hindsight-HMIN100"
 
 
 easy_export(data, names, filename,)

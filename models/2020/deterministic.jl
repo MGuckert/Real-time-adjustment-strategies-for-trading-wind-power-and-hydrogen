@@ -88,7 +88,7 @@ names = [
     "hydrogen production"
 ]
 
-filename = "2020/deterministic"
+filename = "2020/deterministic-12-HMIN50"
 
 
 easy_export(data, names, filename,)
