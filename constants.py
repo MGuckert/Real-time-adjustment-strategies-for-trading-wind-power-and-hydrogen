@@ -1,38 +1,37 @@
 import numpy as np
 import pandas as pd
+import os
 
 # Constants
-HOURS_PER_DAY = 24 # 24 hours
+HOURS_PER_DAY = 24  # 24 hours
 HOURS_PER_WEEK = 168  # 7 days
 HOURS_PER_MONTH = 720  # 30 days
 HOURS_PER_YEAR = 8760  # 365 days
 
-MAX_WIND = 10  # Maximum wind power
 NOMINAL_WIND = 10  # Nominal wind power
 
-rho_H = 20  # Power to hydrogen efficiency of the electrolyzer [kg/MWh]
-eta_storage = 0.88  # Storage efficiency of the hydrogen storage [kg/MWh]
-lambda_H = 2.5  # Hydrogen price [€/kg]
+RHO_H = 20  # Power to hydrogen efficiency of the electrolyzer [kg/MWh]
+ETA_STORAGE = 0.88  # Storage efficiency of the hydrogen storage [kg/MWh]
+LAMBDA_H = 2.5  # Hydrogen price [€/kg]
 H_MIN = 50  # Minimum daily hydrogen production [kg]
-P_H = 10  # Maximal power consumption capacity of the electrolyzer [MWh]
+P_H_MAX = 10  # Maximal power consumption capacity of the electrolyzer [MWh]
 PRICE_H = 35.2  # Hydrogen price [€/MWh]
 
-# Define color constants using RGB normalized to [0, 1] scale
-RED = (0.77, 0, 0.05)  # (196, 0, 13)
-BLUE = (0.12, 0.24, 1)  # (31, 61, 255)
-GREEN = (0.122, 0.816, 0.51)  # (31, 208, 130)
-NAVYBLUE = (0, 0, 0.4)  # (0, 0, 102)
-BLACK = (0, 0, 0)
-WHITE = (1, 1, 1)
-CGREEN = (0.57254902, 0.7254902, 0.51372549)  # (146, 185, 131)
-CBLUE = (0.70196078, 0.83137255, 1)  # (179, 212, 255)
+PENALTY = 80.61  # Value equal to the 95% quantile of the buy prices
 
-# Top domain value (to be understood)
+# Top domain value (linked to price domains)
 TOP_DOMAIN = 53.32  # 90%
 
 # Main datafile
 DATAFILE = "./data/2020_data.csv"
 
+ROLLING_FORECASTS_FILE = "./forecasting/rolling_forecasts_2021_2022.csv"
+
+RESULTS_DIR = os.path.join(os.getcwd(), "results/2020")
+
+Q_FORECAST_CALCULATED = [12.195654545757634, 0.5299454470522954, 1.2367673427003123, -0.5444726493505923,
+                         4.9381332869069965]
+Q_INTERCEPT_CALCULATED = -0.13315441932264693
 
 def import_consts(start_date="2020-01-01", end_date="2022-01-01", negative_prices=False):
     """
@@ -64,10 +63,11 @@ def import_consts(start_date="2020-01-01", end_date="2022-01-01", negative_price
     fm_df = pd.read_csv("./results/2020_forecast_model.csv")
     forecast_production = fm_df.loc[:, "forecast_production"]
 
-    penalty = np.quantile(prices_B, 0.95)
-
     return (
         prices_B, prices_S, prices_F, prices_forecast, features,
-        features_red, realized, PRICE_H, P_H, NOMINAL_WIND,
-        penalty, H_MIN, forecast_production
+        features_red, realized, PRICE_H, P_H_MAX, NOMINAL_WIND,
+        PENALTY, H_MIN, forecast_production
     )
+
+
+import_consts()
