@@ -3,7 +3,8 @@ import numpy as np
 
 from constants import *
 
-def get_hydro_opt(deviation, selling_price, buying_price):
+
+def get_hydro_opt(deviation, selling_price, buying_price, p_h_max):
     """
     Get optimal adjustment at given balancing prices.
 
@@ -18,9 +19,9 @@ def get_hydro_opt(deviation, selling_price, buying_price):
     if selling_price > PRICE_H:
         return 0
     elif buying_price < PRICE_H:
-        return P_H
+        return p_h_max
     else:
-        return np.minimum(P_H, np.maximum(0, deviation))
+        return np.minimum(p_h_max, np.maximum(0, deviation))
 
 
 def apply_upwards_adj(results_to_copy, idx_start, idx_end, printing=False):
@@ -132,7 +133,7 @@ def apply_up_and_dw_adj(results_to_copy, idx_start, idx_end, h_min, printing=Fal
     daily_count = 0
 
     if printing:
-        print(prices_B[idx_start:idx_start+10])
+        print(prices_B[idx_start:idx_start + 10])
 
     for i, t in enumerate(range(idx_start, idx_end)):
         hour_of_day = (i % 24)

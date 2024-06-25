@@ -49,7 +49,6 @@ class DataLoader:
         forecasted_prod *= nominal_wind
         return prices_B, prices_S, prices_F, prices_forecast, features, features_red, realized_prod, forecasted_prod
 
-    #TODO: Check usage of this method
     @staticmethod
     def load_production_forecasts():
         fm_df = pd.read_csv("./results/2020_forecast_model.csv")
