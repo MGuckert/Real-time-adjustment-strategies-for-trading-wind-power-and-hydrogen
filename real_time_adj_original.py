@@ -42,7 +42,7 @@ def apply_upwards_adj(results_to_copy, idx_start, idx_end, printing=False):
      nominal_wind, penalty, min_production, forecast_production) = import_consts()
 
     forward_bids = []
-    ds = []
+    deviations = []
     h_prods = []
     ups = []
     dws = []
@@ -72,9 +72,9 @@ def apply_upwards_adj(results_to_copy, idx_start, idx_end, printing=False):
             h_adj = h_prod
 
         daily_count += h_adj
-        settlementd = realized[t] - forward_bid - h_adj
-        up = np.maximum(-settlementd, 0)
-        dw = np.maximum(settlementd, 0)
+        settlement = realized[t] - forward_bid - h_adj
+        up = np.maximum(-settlement, 0)
+        dw = np.maximum(settlement, 0)
         obj = (
                 forward_bid * prices_F[t]
                 + price_H * h_adj
@@ -83,7 +83,7 @@ def apply_upwards_adj(results_to_copy, idx_start, idx_end, printing=False):
                 - missing_production * penalty
         )
         forward_bids.append(forward_bid)
-        ds.append(d)
+        deviations.append(d)
         h_prods.append(h_adj)
         ups.append(up)
         dws.append(dw)
@@ -92,13 +92,13 @@ def apply_upwards_adj(results_to_copy, idx_start, idx_end, printing=False):
         objs.append(obj)
 
     results = {
-        "forward_bid": forward_bids,
-        "d": ds,
-        "h_prod": h_prods,
+        "forward_bids": forward_bids,
+        "deviations": deviations,
+        "hydrogen_productions": h_prods,
         "up": ups,
         "dw": dws,
-        "missing_production": missing_productions,
-        "obj": objs,
+        "missing_productions": missing_productions,
+        "objectives": objs,
     }
     return results
 
@@ -123,7 +123,7 @@ def apply_up_and_dw_adj(results_to_copy, idx_start, idx_end, h_min, printing=Fal
     min_production = h_min
 
     forward_bids = []
-    ds = []
+    deviations = []
     h_prods = []
     ups = []
     dws = []
@@ -183,7 +183,7 @@ def apply_up_and_dw_adj(results_to_copy, idx_start, idx_end, h_min, printing=Fal
         )
 
         forward_bids.append(forward_bid)
-        ds.append(d)
+        deviations.append(d)
         h_prods.append(h_adj)
         ups.append(up)
         dws.append(dw)
@@ -192,13 +192,13 @@ def apply_up_and_dw_adj(results_to_copy, idx_start, idx_end, h_min, printing=Fal
         objs.append(obj)
 
     results = {
-        "forward_bid": forward_bids,
-        "d": ds,
-        "h_prod": h_prods,
+        "forward_bids": forward_bids,
+        "deviations": deviations,
+        "hydrogen_productions": h_prods,
         "up": ups,
         "dw": dws,
-        "missing_production": missing_productions,
-        "obj": objs,
+        "missing_productions": missing_productions,
+        "objectives": objs,
     }
     return results
 
@@ -221,7 +221,7 @@ def apply_risky_policy(results_to_copy, idx_start, idx_end, printing=False):
      penalty, min_production, forecast_production) = import_consts()
 
     forward_bids = []
-    ds = []
+    deviations = []
     h_prods = []
     ups = []
     dws = []
@@ -291,7 +291,7 @@ def apply_risky_policy(results_to_copy, idx_start, idx_end, printing=False):
         )
 
         forward_bids.append(forward_bid)
-        ds.append(d)
+        deviations.append(d)
         h_prods.append(h_prod)
         ups.append(up)
         dws.append(dw)
@@ -300,12 +300,12 @@ def apply_risky_policy(results_to_copy, idx_start, idx_end, printing=False):
         objs.append(obj)
 
     results = {
-        "forward_bid": forward_bids,
-        "d": ds,
-        "h_prod": h_prods,
+        "forward_bids": forward_bids,
+        "deviations": deviations,
+        "hydrogen_productions": h_prods,
         "up": ups,
         "dw": dws,
-        "missing_production": missing_productions,
-        "obj": objs,
+        "missing_productions": missing_productions,
+        "objectives": objs,
     }
     return results
