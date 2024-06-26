@@ -12,25 +12,16 @@ from real_time_adjustment_utils import compute_objective_variable_bids, compute_
 
 
 class BaseModel(ABC):
-    def __init__(self, filename, datafile=DATAFILE, nominal_wind=NOMINAL_WIND, max_wind=NOMINAL_WIND, p_h_max=P_H_MAX,
-                 h_min=H_MIN):
+    def __init__(self, name, test_start_index, datafile, nominal_wind, max_wind, p_h_max, h_min):
+        self.name = name
         self.data_loader = DataLoader(datafile)
         self.nominal_wind = nominal_wind
         self.max_wind = max_wind
         self.p_h_max = p_h_max
         self.h_min = h_min
-        self.M = max(self.max_wind, self.p_h_max) + 9999999
-
+        self.M = M
+        self.test_start_index = test_start_index
         self._load_and_process_data()
-        self.filename = filename
-        self.weights = None
-        self.trained = False
-        self.results = None
-        self.evaluated = False
-
-        if os.path.exists(os.path.join(RESULTS_DIR, f"{self.filename}.csv")):
-            self.load_weights()
-            self.trained = True
 
     def _load_and_process_data(self):
         data = self.data_loader.get_data()
@@ -51,111 +42,38 @@ class BaseModel(ABC):
         self.forecasted_prod = forecasted_prod
         self.rolling_forecasts = self.data_loader.load_rolling_forecasts(self.nominal_wind)
 
-    def save_weights(self, weights):
-        weights.to_csv(os.path.join(RESULTS_DIR, f"{self.filename}.csv"), index=False)
-        print("Weights saved successfully")
+    def save_results(self, results):
+        dataframe = pd.DataFrame(results)
+        dataframe.to_csv(os.path.join(RESULTS_DIR, f"{self.name}_results.csv"), index=False)
+        print("Results saved successfully.")
 
-    def load_weights(self):
-        filepath = os.path.join(RESULTS_DIR, f"{self.filename}.csv")
+    def load_results(self):
+        filepath = os.path.join(RESULTS_DIR, f"{self.name}_results.csv")
         if not os.path.exists(filepath):
-            raise FileNotFoundError("No saved weights found")
-        self.weights = pd.read_csv(filepath)
-        self.trained = True
-        print("Weights loaded successfully")
+            raise FileNotFoundError("No saved results found.")
+        dataframe = pd.read_csv(filepath)
+        results = dataframe.to_dict(orient='list')
+        print("Results loaded successfully.")
+        return results
 
     def summary(self):
-        print(f"Filename: {self.filename}")
+        print(f"Model {self.name}")
         print(f"Nominal wind: {self.nominal_wind}")
         print(f"Max wind: {self.max_wind}")
         print(f"Max hydrogen: {self.p_h_max}")
         print(f"H min: {self.h_min}")
         print(f"Number of features: {self.n_features}")
-        print(f"Model trained: {self.trained}")
-        print(f"Model evaluated: {self.evaluated}")
-        if self.evaluated:
-            print(f"Total objective: {self.get_total_objective()}")
-
-    # @abstractmethod
-    # def get_schedule(self, idx_start, idx_end):
-    #     pass
-    #
-    # def evaluate(self, idx_start, idx_end, start_from_second_year=False):
-    #     """
-    #     Evaluate the model on the test set.
-    #     Args:
-    #         start_from_second_year: If True, the model will start from the second year of data
-    #         idx_start: Start index of the data
-    #         idx_end: End index of the data
-    #
-    #     Returns:
-    #         dict: Results of the optimization problem
-    #     """
-    #     if not self.trained:
-    #         print("Model has not been trained.")
-    #         return
-    #
-    #     forward_bids, h_prods = self.get_schedule(idx_start, idx_end)
-    #
-    #     ds, ups, dws, objs, missing_productions = [], [], [], [], []
-    #
-    #     for t in range(idx_start, idx_end):
-    #         h_adj = h_prods[t - idx_start]
-    #         forward_bid = forward_bids[t - idx_start]
-    #         if t % HOURS_PER_DAY == 0 and t != idx_start:
-    #             missing_production = np.maximum(
-    #                 self.h_min - np.sum(h_prods[(t - idx_start - HOURS_PER_DAY):(t - idx_start)]), 0)
-    #         else:
-    #             missing_production = 0
-    #         settlement = self.realized[t] - forward_bid - h_adj
-    #
-    #         up_val = np.maximum(-settlement, 0)
-    #         dw_val = np.maximum(settlement, 0)
-    #         obj_val = (
-    #                 forward_bid * self.prices_F[t]
-    #                 + PRICE_H * h_adj
-    #                 + dw_val * self.prices_S[t]
-    #                 - up_val * self.prices_B[t]
-    #                 - missing_production * PENALTY
-    #         )
-    #
-    #         ds.append(self.realized[t] - forward_bid)
-    #         ups.append(up_val)
-    #         dws.append(dw_val)
-    #         missing_productions.append(missing_production)
-    #         objs.append(obj_val)
-    #
-    #     results = {'d': ds, 'h_prod': h_prods, 'forward_bid': forward_bids, 'up': ups, 'dw': dws,
-    #                'missing_production': missing_productions, 'obj': objs}
-    #
-    #     self.results = results
-    #     self.evaluated = True
-    #
-    #     return results
-
-    def get_results(self):
-        if not self.evaluated:
-            print("Model not evaluated. Please evaluate the model first.")
-            return
-        return self.results
-
-    def get_total_objective(self):
-        if not self.evaluated:
-            print("Model not evaluated. Please evaluate the model first.")
-            return
-        return np.sum(self.results["obj"])
+        print(f"Test start index: {self.test_start_index}")
 
     # Real-Time Adjustment Methods #
 
-    def best_adjustment(self, idx_start, idx_end):
+    def best_adjustment(self, results, idx_start, idx_end):
 
-        if not self.evaluated:
-            print("Model not evaluated. Please evaluate the model first.")
-            return
-        results = copy.deepcopy(self.results)
+        results = copy.deepcopy(results)
 
-        ds, h_prods, ups, dws, objs, missing_productions = [], [], [], [], [], []
+        deviations, h_prods, ups, dws, objectives, missing_productions = [], [], [], [], [], []
 
-        forward_bids = results['forward_bid']
+        forward_bids = results['forward_bids']
 
         h_prod = []
 
@@ -219,27 +137,28 @@ class BaseModel(ABC):
                     - missing_production * PENALTY
             )
 
-            ds.append(self.realized[t] - forward_bid)
+            deviations.append(self.realized[t] - forward_bid)
             h_prods.append(h_adj)
             ups.append(up_val)
             dws.append(dw_val)
             missing_productions.append(missing_production)
-            objs.append(obj_val)
+            objectives.append(obj_val)
 
-        results['d'] = ds
-        results['h_prod'] = h_prods
+        results["deviations"] = deviations
+        results['hydrogen_productions'] = h_prods
         results['up'] = ups
         results['dw'] = dws
         results['missing_production'] = missing_productions
-        results['obj'] = objs
+        results["objectives"] = objectives
 
         return results
 
-    def apply_up_and_dw_adj(self, idx_start, idx_end, printing=False):
+    def apply_up_and_dw_adj(self, results, idx_start, idx_end, printing=False):
         """
         Perform complete evaluation for upwards and downwards adjustment performed on a given model.
 
         Args:
+            results: Results of the model.
             idx_start (int): Start index for evaluation.
             idx_end (int): End index for evaluation.
             printing (bool, optional): If True, prints adjustments. Defaults to False.
@@ -247,33 +166,28 @@ class BaseModel(ABC):
         Returns:
             dict: Results of the adjustment.
         """
-        results = copy.deepcopy(self.results)
+        results = copy.deepcopy(results)
 
         min_production = self.h_min
 
         forward_bids = []
-        ds = []
+        deviations = []
         h_prods = []
         ups = []
         dws = []
-        objs = []
+        objectives = []
         missing_productions = []
         missing_production = 0
         daily_count = 0
 
         for i, t in enumerate(range(idx_start, idx_end)):
-
-            print(f"i={i}, t={t}")
-            print(f"Prices: {self.prices_B[t]}, {self.prices_S[t]}, {self.prices_F[t]}")
-            print(f"Realized: {self.realized[t]}")
-
             hour_of_day = (i % 24)
             if (hour_of_day == 0) and t != idx_start:
                 missing_production = np.maximum(min_production - daily_count, 0)
                 daily_count = 0
 
-            forward_bid = results['forward_bid'][i]
-            h_prod = results['h_prod'][i]
+            forward_bid = results['forward_bids'][i]
+            h_prod = results['hydrogen_productions'][i]
 
             d = self.realized[t] - forward_bid
 
@@ -288,7 +202,8 @@ class BaseModel(ABC):
                 if hour_of_day == 23:
                     remaining_planned = 0
                 else:
-                    remaining_planned = np.sum([results['h_prod'][i + j] for j in range(remaining_hours + 1)])
+                    remaining_planned = np.sum(
+                        [results['hydrogen_productions'][i + j] for j in range(remaining_hours + 1)])
                 surplus = daily_count + remaining_planned - min_production
                 wanted = h_prod - opt_h
                 if surplus >= wanted:
@@ -302,9 +217,9 @@ class BaseModel(ABC):
                         print(f"Original prod: {h_prod}, Resulting prod: {h_adj}")
 
             daily_count += h_adj
-            settlementd = self.realized[t] - forward_bid - h_adj
-            up = np.maximum(-settlementd, 0)
-            dw = np.maximum(settlementd, 0)
+            settlement = self.realized[t] - forward_bid - h_adj
+            up = np.maximum(-settlement, 0)
+            dw = np.maximum(settlement, 0)
             obj = (
                     forward_bid * self.prices_F[t]
                     + PRICE_H * h_adj
@@ -314,31 +229,31 @@ class BaseModel(ABC):
             )
 
             forward_bids.append(forward_bid)
-            ds.append(d)
+            deviations.append(d)
             h_prods.append(h_adj)
             ups.append(up)
             dws.append(dw)
             missing_productions.append(missing_production)
             missing_production = 0
-            objs.append(obj)
+            objectives.append(obj)
 
         results = {
-            "forward_bid": forward_bids,
-            "d": ds,
-            "h_prod": h_prods,
+            "forward_bids": forward_bids,
+            "deviations": deviations,
+            "hydrogen_productions": h_prods,
             "up": ups,
             "dw": dws,
-            "missing_production": missing_productions,
-            "obj": objs,
+            "missing_productions": missing_productions,
+            "objectives": objectives,
         }
         return results
 
-    def MPC_adjustment(self, idx_start, idx_end, verbose=False):
-        results = copy.deepcopy(self.results)
+    def MPC_adjustment(self, results, idx_start, idx_end, verbose=False):
+        results = copy.deepcopy(results)
 
-        forward_bids = results['forward_bid']
+        forward_bids = results['forward_bids']
 
-        ds, h_prods, ups, dws, objs, missing_productions = [], [], [], [], [], []
+        deviations, h_prods, ups, dws, objectives, missing_productions = [], [], [], [], [], []
         missing_production = daily_count = 0
 
         for t in range(idx_start, idx_end):
@@ -408,12 +323,12 @@ class BaseModel(ABC):
                     - missing_production * PENALTY
             )
 
-            ds.append(d)
+            deviations.append(d)
             h_prods.append(h_adj)
             ups.append(up_val)
             dws.append(dw_val)
             missing_productions.append(missing_production)
-            objs.append(obj_val)
+            objectives.append(obj_val)
             missing_production = 0
 
             if verbose:
@@ -425,11 +340,11 @@ class BaseModel(ABC):
                 print(f"  Settlement: {settlement}")
                 print(f"  Objective Value: {obj_val}")
 
-        results['d'] = ds
-        results['h_prod'] = h_prods
+        results["deviations"] = deviations
+        results['hydrogen_productions'] = h_prods
         results['up'] = ups
         results['dw'] = dws
         results['missing_production'] = missing_productions
-        results['obj'] = objs
+        results["objectives"] = objectives
 
         return results

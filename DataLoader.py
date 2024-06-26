@@ -1,6 +1,7 @@
-import numpy as np
 import pandas as pd
+
 from constants import *
+
 
 class DataLoader:
     def __init__(self, datafile=DATAFILE):
@@ -52,7 +53,7 @@ class DataLoader:
     @staticmethod
     def load_production_forecasts():
         fm_df = pd.read_csv("./results/2020_forecast_model.csv")
-        forecast_production = fm_df.loc[:,"forecast_production"]
+        forecast_production = fm_df.loc[:, "forecast_production"]
         return forecast_production
 
     @staticmethod
@@ -65,9 +66,9 @@ class DataLoader:
         forecasts = pd.read_csv(ROLLING_FORECASTS_FILE, index_col=0)
         # Create a mock first month (720 rows)
         mock_data = np.zeros((720, 24))
-        print(pd.DataFrame(mock_data))
-        forecasts = pd.concat([pd.DataFrame(mock_data,columns=forecasts.columns), forecasts], ignore_index=True,axis=0)
+        forecasts = pd.concat([pd.DataFrame(mock_data, columns=forecasts.columns), forecasts], ignore_index=True,
+                              axis=0)
         forecasts *= nominal_wind
         forecasts.clip(lower=0, upper=10, inplace=True)
         forecasts['production_FC'] = forecasts[forecasts.columns].values.tolist()
-        return  forecasts.loc[:, "production_FC"].to_numpy()
+        return forecasts.loc[:, "production_FC"].to_numpy()
