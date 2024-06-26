@@ -101,7 +101,7 @@ def get_scaled_objs(list_of_results):
     Returns:
         list: Total revenue scaled to millions.
     """
-    return [np.sum(result['obj']) / 1e6 for result in list_of_results]
+    return [np.sum(result["objectives"]) / 1e6 for result in list_of_results]
 
 
 def get_remaining_planned_hydro(df, features, max_elec, i):
@@ -145,11 +145,11 @@ def test_initial_plan(df_f, df_h, idx_start, idx_end, general=False, fm=False, r
      forecast_production) = import_consts()
 
     forward_bids = []
-    ds = []
+    deviations = []
     h_prods = []
     ups = []
     dws = []
-    objs = []
+    objectives = []
     missing_productions = []
     missing_production = 0
     daily_count = 0
@@ -204,22 +204,22 @@ def test_initial_plan(df_f, df_h, idx_start, idx_end, general=False, fm=False, r
         )
 
         forward_bids.append(forward_bid)
-        ds.append(d)
+        deviations.append(d)
         h_prods.append(h_prod)
         ups.append(up)
         dws.append(dw)
         missing_productions.append(missing_production)
         missing_production = 0
-        objs.append(obj)
+        objectives.append(obj)
 
     results = {
-        "forward_bid": forward_bids,
-        "d": ds,
-        "h_prod": h_prods,
+        "forward_bids": forward_bids,
+        "deviations": deviations,
+        "hydrogen_productions": h_prods,
         "up": ups,
         "dw": dws,
-        "missing_production": missing_productions,
-        "obj": objs,
+        "missing_productions": missing_productions,
+        "objectives": objectives,
     }
     return results
 
@@ -247,11 +247,11 @@ def test_initial_plan_changing_qs(init_filename, cqs_filename, idx_start, idx_en
      forecast_production) = import_consts()
 
     forward_bids = []
-    ds = []
+    deviations = []
     h_prods = []
     ups = []
     dws = []
-    objs = []
+    objectives = []
     missing_productions = []
     missing_production = 0
     daily_count = 0
@@ -326,22 +326,22 @@ def test_initial_plan_changing_qs(init_filename, cqs_filename, idx_start, idx_en
         )
 
         forward_bids.append(forward_bid)
-        ds.append(d)
+        deviations.append(d)
         h_prods.append(h_prod)
         ups.append(up)
         dws.append(dw)
         missing_productions.append(missing_production)
         missing_production = 0
-        objs.append(obj)
+        objectives.append(obj)
 
     results = {
-        "forward_bid": forward_bids,
-        "d": ds,
-        "h_prod": h_prods,
+        "forward_bids": forward_bids,
+        "deviations": deviations,
+        "hydrogen_productions": h_prods,
         "up": ups,
         "dw": dws,
-        "missing_production": missing_productions,
-        "obj": objs,
+        "missing_productions": missing_productions,
+        "objectives": objectives,
     }
     return results
 
@@ -366,7 +366,7 @@ def test_fixed(forward, hydrogen, idx_start, idx_end, h_min):
     min_production = h_min
 
     forward_bids = []
-    ds = []
+    deviations = []
     h_prods = []
     ups = []
     dws = []
@@ -399,7 +399,7 @@ def test_fixed(forward, hydrogen, idx_start, idx_end, h_min):
         )
 
         forward_bids.append(forward_bid)
-        ds.append(d)
+        deviations.append(d)
         h_prods.append(h_prod)
         ups.append(up)
         missing_productions.append(missing_production)
@@ -408,13 +408,13 @@ def test_fixed(forward, hydrogen, idx_start, idx_end, h_min):
         objs.append(obj)
 
     results = {
-        "forward_bid": forward_bids,
-        "d": ds,
-        "h_prod": h_prods,
+        "forward_bids": forward_bids,
+        "deviations": deviations,
+        "hydrogen_productions": h_prods,
         "up": ups,
         "dw": dws,
-        "missing_production": missing_productions,
-        "obj": objs,
+        "missing_productions": missing_productions,
+        "objectives": objs,
     }
 
     return results
@@ -438,7 +438,7 @@ def test_det(forward, hydrogen, idx_start, idx_end):
      forecast_production) = import_consts()
 
     forward_bids = []
-    ds = []
+    deviations = []
     h_prods = []
     ups = []
     dws = []
@@ -481,7 +481,7 @@ def test_det(forward, hydrogen, idx_start, idx_end):
         )
 
         forward_bids.append(forward_bid)
-        ds.append(d)
+        deviations.append(d)
         h_prods.append(h_prod)
         ups.append(up)
         missing_productions.append(missing_production)
@@ -490,13 +490,13 @@ def test_det(forward, hydrogen, idx_start, idx_end):
         objs.append(obj)
 
     results = {
-        "forward_bid": forward_bids,
-        "d": ds,
-        "h_prod": h_prods,
+        "forward_bids": forward_bids,
+        "deviations": deviations,
+        "hydrogen_productions": h_prods,
         "up": ups,
         "dw": dws,
-        "missing_production": missing_productions,
-        "obj": objs,
+        "missing_productions": missing_productions,
+        "objectives": objs,
     }
 
     return results
@@ -524,7 +524,7 @@ def test_price_domain(df, idx_start, idx_end, h_min, general=False, fm=False, re
     min_production = h_min
 
     forward_bids = []
-    ds = []
+    deviations = []
     h_prods = []
     ups = []
     dws = []
@@ -599,7 +599,7 @@ def test_price_domain(df, idx_start, idx_end, h_min, general=False, fm=False, re
         )
 
         forward_bids.append(forward_bid)
-        ds.append(d)
+        deviations.append(d)
         h_prods.append(h_prod)
         ups.append(up)
         dws.append(dw)
@@ -608,13 +608,13 @@ def test_price_domain(df, idx_start, idx_end, h_min, general=False, fm=False, re
         objs.append(obj)
 
     results = {
-        "forward_bid": forward_bids,
-        "d": ds,
-        "h_prod": h_prods,
+        "forward_bids": forward_bids,
+        "deviations": deviations,
+        "hydrogen_productions": h_prods,
         "up": ups,
         "dw": dws,
-        "missing_production": missing_productions,
-        "obj": objs,
+        "missing_productions": missing_productions,
+        "objectives": objs,
     }
     return results
 
@@ -642,7 +642,7 @@ def test_price_domain_changing_qs(init_filename, cqs_filename, idx_start, idx_en
      forecast_production) = import_consts()
 
     forward_bids = []
-    ds = []
+    deviations = []
     h_prods = []
     ups = []
     dws = []
@@ -728,7 +728,7 @@ def test_price_domain_changing_qs(init_filename, cqs_filename, idx_start, idx_en
         )
 
         forward_bids.append(forward_bid)
-        ds.append(d)
+        deviations.append(d)
         h_prods.append(h_prod)
         ups.append(up)
         dws.append(dw)
@@ -737,12 +737,12 @@ def test_price_domain_changing_qs(init_filename, cqs_filename, idx_start, idx_en
         objs.append(obj)
 
     results = {
-        "forward_bid": forward_bids,
-        "d": ds,
-        "h_prod": h_prods,
+        "forward_bids": forward_bids,
+        "deviations": deviations,
+        "hydrogen_productions": h_prods,
         "up": ups,
         "dw": dws,
-        "missing_production": missing_productions,
-        "obj": objs,
+        "missing_productions": missing_productions,
+        "objectives": objs,
     }
     return results
