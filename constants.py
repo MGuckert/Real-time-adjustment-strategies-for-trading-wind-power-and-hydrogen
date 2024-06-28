@@ -6,7 +6,7 @@ import os
 HOURS_PER_DAY = 24  # 24 hours
 HOURS_PER_WEEK = 168  # 7 days
 HOURS_PER_MONTH = 720  # 30 days
-HOURS_PER_YEAR = 8760  # 365 days
+HOURS_PER_YEAR = 8640  # 12 months (360 days)
 
 M = 1000 # A large number
 

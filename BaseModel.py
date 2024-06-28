@@ -1,6 +1,6 @@
 import copy
-
-from abc import ABC, abstractmethod
+import json
+from abc import ABC
 
 import gurobipy as gp
 from gurobipy import GRB
@@ -8,7 +8,7 @@ from gurobipy import GRB
 from DataLoader import DataLoader
 from constants import *
 from real_time_adj_original import get_hydro_opt
-from real_time_adjustment_utils import compute_objective_variable_bids, compute_objective_fixed_bids
+from real_time_adjustment_utils import compute_objective_fixed_bids
 
 
 class BaseModel(ABC):
@@ -21,6 +21,27 @@ class BaseModel(ABC):
         self.h_min = h_min
         self.M = M
         self.test_start_index = test_start_index
+        self.model_dir = os.path.join(RESULTS_DIR, self.name)
+
+        # Generate a configuration file for the model
+        config = {
+            "name": name,
+            "nominal_wind": nominal_wind,
+            "max_wind": max_wind,
+            "p_h_max": p_h_max,
+            "h_min": h_min,
+            "test_start_index": test_start_index,
+            "datafile": datafile
+        }
+        if os.path.exists(self.model_dir):
+            with open(os.path.join(self.model_dir, "config.json"), "r") as f:
+                existing_config = json.load(f)
+            if existing_config != config:
+                raise ValueError(f"Model {name} already exists with different configuration.")
+        else:
+            os.makedirs(self.model_dir)
+        with open(os.path.join(self.model_dir, "config.json"), "w") as f:
+            json.dump(config, f)
         self._load_and_process_data()
 
     def _load_and_process_data(self):
@@ -42,15 +63,24 @@ class BaseModel(ABC):
         self.forecasted_prod = forecasted_prod
         self.rolling_forecasts = self.data_loader.load_rolling_forecasts(self.nominal_wind)
 
-    def save_results(self, results):
+    @staticmethod
+    def load_from_config(model_name, model_class):
+        model_dir = os.path.join(RESULTS_DIR, model_name)
+        if not os.path.exists(model_dir):
+            raise FileNotFoundError(f"No model found with name {model_name}.")
+        with open(os.path.join(model_dir, "config.json"), "r") as f:
+            config = json.load(f)
+        return model_class(**config)
+
+    def save_results(self, results, flag=""):
         dataframe = pd.DataFrame(results)
-        dataframe.to_csv(os.path.join(RESULTS_DIR, f"{self.name}_results.csv"), index=False)
+        dataframe.to_csv(os.path.join(self.model_dir, f"{self.name}_results_{flag}.csv"), index=False)
         print("Results saved successfully.")
 
-    def load_results(self):
-        filepath = os.path.join(RESULTS_DIR, f"{self.name}_results.csv")
+    def load_results(self, flag=""):
+        filepath = os.path.join(self.model_dir, f"{self.name}_results_{flag}.csv")
         if not os.path.exists(filepath):
-            raise FileNotFoundError("No saved results found.")
+            raise FileNotFoundError(f"No results found for {self.name} with flag {flag}.")
         dataframe = pd.read_csv(filepath)
         results = dataframe.to_dict(orient='list')
         print("Results loaded successfully.")
@@ -67,9 +97,12 @@ class BaseModel(ABC):
 
     # Real-Time Adjustment Methods #
 
-    def best_adjustment(self, results, idx_start, idx_end):
+    def best_adjustment(self, results):
 
         results = copy.deepcopy(results)
+
+        idx_start = self.test_start_index
+        idx_end = idx_start + len(results['forward_bids'])
 
         deviations, h_prods, ups, dws, objectives, missing_productions = [], [], [], [], [], []
 
@@ -84,11 +117,11 @@ class BaseModel(ABC):
             model = gp.Model('Hindsight')
 
             # Variables
-            p_adj = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
-            up = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='up', lb=0.0)
-            dw = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='dw', lb=0.0)
-            up_aux = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='up_aux', lb=-GRB.INFINITY)
-            dw_aux = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='dw_aux', lb=-GRB.INFINITY)
+            p_adj = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+            up = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='up', lb=0.0)
+            dw = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='dw', lb=0.0)
+            up_aux = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='up_aux', lb=-GRB.INFINITY)
+            dw_aux = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='dw_aux', lb=-GRB.INFINITY)
 
             # Objective
             model.setObjective(
@@ -153,20 +186,21 @@ class BaseModel(ABC):
 
         return results
 
-    def apply_up_and_dw_adj(self, results, idx_start, idx_end, printing=False):
+    def rule_based_adjustment(self, results, printing=False):
         """
         Perform complete evaluation for upwards and downwards adjustment performed on a given model.
 
         Args:
             results: Results of the model.
-            idx_start (int): Start index for evaluation.
-            idx_end (int): End index for evaluation.
             printing (bool, optional): If True, prints adjustments. Defaults to False.
 
         Returns:
             dict: Results of the adjustment.
         """
         results = copy.deepcopy(results)
+
+        idx_start = self.test_start_index
+        idx_end = idx_start + len(results['forward_bids'])
 
         min_production = self.h_min
 
@@ -248,8 +282,11 @@ class BaseModel(ABC):
         }
         return results
 
-    def MPC_adjustment(self, results, idx_start, idx_end, verbose=False):
+    def MPC_adjustment(self, results, verbose=False):
         results = copy.deepcopy(results)
+
+        idx_start = self.test_start_index
+        idx_end = idx_start + len(results['forward_bids'])
 
         forward_bids = results['forward_bids']
 
@@ -272,11 +309,11 @@ class BaseModel(ABC):
                 model = gp.Model('Real Time Adjustment')
 
                 # Variables
-                p_adj = model.addMVar(shape=hours_left, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
-                up = model.addMVar(shape=hours_left, vtype=GRB.CONTINUOUS, name='up', lb=0.0)
-                dw = model.addMVar(shape=hours_left, vtype=GRB.CONTINUOUS, name='dw', lb=0.0)
-                up_aux = model.addMVar(shape=hours_left, vtype=GRB.CONTINUOUS, name='up_aux', lb=-GRB.INFINITY)
-                dw_aux = model.addMVar(shape=hours_left, vtype=GRB.CONTINUOUS, name='dw_aux', lb=-GRB.INFINITY)
+                p_adj = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                up = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='up', lb=0.0)
+                dw = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='dw', lb=0.0)
+                up_aux = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='up_aux', lb=-GRB.INFINITY)
+                dw_aux = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='dw_aux', lb=-GRB.INFINITY)
 
                 # Objective
                 model.setObjective(
@@ -291,6 +328,112 @@ class BaseModel(ABC):
                     k = t + j
                     settlement = self.realized[k] - forward_bids[k - idx_start] - p_adj[j] if j == 0 else \
                         self.rolling_forecasts[t][j] - \
+                        forward_bids[k - idx_start] - p_adj[j]
+                    model.addConstr(up_aux[j] == -settlement, f'up_aux_{j}')
+                    model.addConstr(dw_aux[j] == settlement, f'dw_aux_{j}')
+                    model.addGenConstrMax(up[j], [up_aux[j]], constant=0., name=f'up_{j}')
+                    model.addGenConstrMax(dw[j], [dw_aux[j]], constant=0, name=f'dw_{j}')
+
+                model.setParam('OutputFlag', 0)
+                model.optimize()
+
+                if model.status != GRB.OPTIMAL:
+                    if verbose:
+                        print(f"Optimization failed at {t}")
+                    break
+
+                h_adj = np.maximum(0, np.minimum(self.p_h_max, p_adj[0].X))
+
+            else:
+                h_adj = get_hydro_opt(self.realized[t] - forward_bid, self.prices_S[t], self.prices_B[t], self.p_h_max)
+
+            daily_count += h_adj
+            settlement = self.realized[t] - forward_bid - h_adj
+
+            up_val = np.maximum(-settlement, 0)
+            dw_val = np.maximum(settlement, 0)
+            obj_val = (
+                    forward_bid * self.prices_F[t]
+                    + PRICE_H * h_adj
+                    + dw_val * self.prices_S[t]
+                    - up_val * self.prices_B[t]
+                    - missing_production * PENALTY
+            )
+
+            deviations.append(d)
+            h_prods.append(h_adj)
+            ups.append(up_val)
+            dws.append(dw_val)
+            missing_productions.append(missing_production)
+            objectives.append(obj_val)
+            missing_production = 0
+
+            if verbose:
+                print(f"Time {t}:")
+                print(f"  Prices: {self.prices_B[t]}, {self.prices_S[t]}, {self.prices_F[t]}")
+                print(f"  Forward Bid: {forward_bids[t]}")
+                print(f"  Realized: {self.realized[t]}")
+                print(f"  Adjustment: {h_adj}")
+                print(f"  Settlement: {settlement}")
+                print(f"  Objective Value: {obj_val}")
+
+        results["deviations"] = deviations
+        results['hydrogen_productions'] = h_prods
+        results['up'] = ups
+        results['dw'] = dws
+        results['missing_production'] = missing_productions
+        results["objectives"] = objectives
+
+        return results
+
+    def MPC_adjustment_with_DA_forecasts(self, results, verbose=False):
+        day_ahead_forecasts = self.x['production_FC'].to_numpy()
+
+        results = copy.deepcopy(results)
+
+        idx_start = self.test_start_index
+        idx_end = idx_start + len(results['forward_bids'])
+
+        forward_bids = results['forward_bids']
+
+        deviations, h_prods, ups, dws, objectives, missing_productions = [], [], [], [], [], []
+        missing_production = daily_count = 0
+
+        for t in range(idx_start, idx_end):
+            i = t % 24
+            if i == 0 and t != idx_start:
+                if verbose:
+                    print(f"Day {t // 24} of {(idx_end - idx_start) // 24} done")
+                missing_production = max(self.h_min - daily_count, 0)
+                daily_count = 0
+
+            forward_bid = forward_bids[t - idx_start]
+            d = self.realized[t] - forward_bid
+            hours_left = 24 - i
+
+            if daily_count < self.h_min:
+                model = gp.Model('Real Time Adjustment')
+
+                # Variables
+                p_adj = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                up = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='up', lb=0.0)
+                dw = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='dw', lb=0.0)
+                up_aux = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='up_aux', lb=-GRB.INFINITY)
+                dw_aux = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='dw_aux', lb=-GRB.INFINITY)
+
+                # Objective
+                model.setObjective(
+                    compute_objective_fixed_bids(t, idx_start, hours_left, p_adj, up, dw, forward_bids, self.prices_F,
+                                                 self.prices_S,
+                                                 self.prices_B), GRB.MAXIMIZE)
+
+                # Constraints
+                model.addConstr(self.h_min <= p_adj.sum() + daily_count, 'Daily Production')
+
+                for j in range(hours_left):
+                    k = t + j
+                    settlement = self.realized[k] - forward_bids[k - idx_start] - p_adj[j] if j == 0 else \
+                        day_ahead_forecasts[k] - \
                         forward_bids[k - idx_start] - p_adj[j]
                     model.addConstr(up_aux[j] == -settlement, f'up_aux_{j}')
                     model.addConstr(dw_aux[j] == settlement, f'dw_aux_{j}')

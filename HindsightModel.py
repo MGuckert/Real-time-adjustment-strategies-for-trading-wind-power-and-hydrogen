@@ -16,14 +16,14 @@ class HindsightModel(StaticModel):
         model = gp.Model('Global hindsight')
 
         # Variables
-        hydrogen_productions = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0,
+        hydrogen_productions = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0,
                                              ub=self.p_h_max)
-        forward_bids = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='forward_bids', lb=-self.p_h_max,
+        forward_bids = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='forward_bids', lb=-self.p_h_max,
                                      ub=self.nominal_wind)
-        up = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='up', lb=0.0)
-        dw = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='dw', lb=0.0)
-        up_aux = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='up_aux', lb=-GRB.INFINITY)
-        dw_aux = model.addMVar(shape=HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='dw_aux', lb=-GRB.INFINITY)
+        up = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='up', lb=0.0)
+        dw = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='dw', lb=0.0)
+        up_aux = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='up_aux', lb=-GRB.INFINITY)
+        dw_aux = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='dw_aux', lb=-GRB.INFINITY)
 
         # Objective
         model.setObjective(

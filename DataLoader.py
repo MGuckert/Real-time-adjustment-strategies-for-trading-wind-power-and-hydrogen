@@ -1,47 +1,50 @@
+from typing import Any
+
 import pandas as pd
 
 from constants import *
 
 
 class DataLoader:
-    def __init__(self, datafile=DATAFILE):
+    def __init__(self, datafile: str = DATAFILE):
         self.datafile = datafile
-        self._load_data()
+        self.data = self._load_data()
 
-    def _load_data(self):
+    def _load_data(self) -> pd.DataFrame:
         if not os.path.exists(self.datafile):
             print(f"File {self.datafile} not found.")
             exit(1)
-        self.data = pd.read_csv(self.datafile)
-        self.data.index = pd.date_range(start="2020-01-01", periods=len(self.data), freq="h")
-        self.data = self.data.loc["2020-01-01":"2022-01-01"]
+        data = pd.read_csv(self.datafile)
+        data.index = pd.date_range(start="2020-01-01", periods=len(data), freq="h")
+        data = data.loc["2020-01-01":"2022-01-01"]
+        return data
 
-    def get_data(self):
+    def get_data(self) -> pd.DataFrame:
         return self.data
 
-    def build_features(self):
+    def build_features(self) -> pd.DataFrame:
         features = self.data.loc[:, ["Offshore DK2", "Offshore DK1", "Onshore DK2", "Onshore DK1", "production_FC"]]
         features["forward"] = np.maximum(self.data["forward_RE"].to_numpy(), 0)
         return features
 
-    def build_features_red(self):
+    def build_features_red(self) -> pd.DataFrame:
         features_red = self.data.loc[:, ["production_FC"]]
         features_red["forward"] = np.maximum(self.data["forward_RE"].to_numpy(), 0)
         return features_red
 
-    def build_prices(self):
+    def build_prices(self) -> Any:
         prices_B = np.maximum(self.data["UP"].to_numpy(), 0)
         prices_S = np.maximum(self.data["DW"].to_numpy(), 0)
         prices_F = np.maximum(self.data["forward_RE"].to_numpy(), 0)
         prices_forecast = np.maximum(self.data["forward_FC"].to_numpy(), 0)
         return prices_B, prices_S, prices_F, prices_forecast
 
-    def build_production(self):
+    def build_production(self) -> Any:
         realized_prod = self.data["production_RE"].to_numpy()
         forecasted_prod = self.data["production_FC"].to_numpy()
         return realized_prod, forecasted_prod
 
-    def build_all(self, nominal_wind=NOMINAL_WIND):
+    def build_all(self, nominal_wind: int = NOMINAL_WIND) -> Any:
         prices_B, prices_S, prices_F, prices_forecast = self.build_prices()
         features = self.build_features()
         features_red = self.build_features_red()
@@ -50,14 +53,19 @@ class DataLoader:
         forecasted_prod *= nominal_wind
         return prices_B, prices_S, prices_F, prices_forecast, features, features_red, realized_prod, forecasted_prod
 
+    def build_single_balancing_price(self):
+        prices_SB = self.data[['UP', 'DW', 'forward_RE']].apply(
+            lambda x: x.iloc[0] if x.iloc[0] != x.iloc[2] else x.iloc[1], axis=1).to_numpy()
+        return prices_SB
+
     @staticmethod
-    def load_production_forecasts():
+    def load_production_forecasts() -> pd.Series:
         fm_df = pd.read_csv("./results/2020_forecast_model.csv")
         forecast_production = fm_df.loc[:, "forecast_production"]
         return forecast_production
 
     @staticmethod
-    def load_rolling_forecasts(nominal_wind):
+    def load_rolling_forecasts(nominal_wind: int = NOMINAL_WIND) -> pd.DataFrame:
         """
         Load rolling forecasts from file. WARNING: The first month is not available as it is used for training (mock data has been added)
         Returns:
@@ -69,6 +77,6 @@ class DataLoader:
         forecasts = pd.concat([pd.DataFrame(mock_data, columns=forecasts.columns), forecasts], ignore_index=True,
                               axis=0)
         forecasts *= nominal_wind
-        forecasts.clip(lower=0, upper=10, inplace=True)
+        forecasts.clip(lower=0, upper=nominal_wind, inplace=True)
         forecasts['production_FC'] = forecasts[forecasts.columns].values.tolist()
         return forecasts.loc[:, "production_FC"].to_numpy()
