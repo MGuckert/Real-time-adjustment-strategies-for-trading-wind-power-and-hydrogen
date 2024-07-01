@@ -15,6 +15,11 @@ def get_average_hydrogen_production(result):
     return np.mean(result["hydrogen_productions"])
 
 
+def get_average_hydrogen_production_per_day(result):
+    return np.mean(
+        [np.sum(result["hydrogen_productions"][i:i + 24]) for i in range(0, len(result["hydrogen_productions"]), 24)])
+
+
 def plot_hydrogen_production(result):
     plt.plot(result["hydrogen_productions"])
     plt.xlabel('Hour')
