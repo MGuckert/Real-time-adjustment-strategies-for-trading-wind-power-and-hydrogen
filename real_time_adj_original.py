@@ -4,24 +4,21 @@ import numpy as np
 from constants import *
 
 
-def get_hydro_opt(deviation, selling_price, buying_price, p_h_max):
+def get_hydro_opt(single_balancing_price, p_h_max):
     """
     Get optimal adjustment at given balancing prices.
 
     Args:
-        deviation (float): Some value (to be defined).
-        selling_price (float): Low sell price.
-        buying_price (float): Low buy price.
+        p_h_max: Maximum hydrogen production.
+        single_balancing_price: Single balancing price.
 
     Returns:
         float: Optimal adjustment value.
     """
-    if selling_price > PRICE_H:
-        return 0
-    elif buying_price < PRICE_H:
+    if single_balancing_price < PRICE_H:
         return p_h_max
     else:
-        return np.minimum(p_h_max, np.maximum(0, deviation))
+        return 0
 
 
 def apply_upwards_adj(results_to_copy, idx_start, idx_end, printing=False):

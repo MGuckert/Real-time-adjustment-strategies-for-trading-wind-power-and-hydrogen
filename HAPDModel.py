@@ -36,9 +36,11 @@ class HAPDModel(TrainableModel):
         summary(): Print the summary.
     """
 
-    def __init__(self, name, test_start_index=12*HOURS_PER_MONTH, datafile=DATAFILE, nominal_wind=NOMINAL_WIND, max_wind=NOMINAL_WIND, p_h_max=P_H_MAX,
+    def __init__(self, name, test_start_index=12 * HOURS_PER_MONTH, datafile=DATAFILE, nominal_wind=NOMINAL_WIND,
+                 max_wind=NOMINAL_WIND, p_h_max=P_H_MAX,
                  h_min=H_MIN):
-        super().__init__(name, test_start_index, datafile=datafile, nominal_wind=nominal_wind, max_wind=max_wind, p_h_max=p_h_max,
+        super().__init__(name, test_start_index, datafile=datafile, nominal_wind=nominal_wind, max_wind=max_wind,
+                         p_h_max=p_h_max,
                          h_min=h_min)
 
     def compute_optimal_weights(self, training_length):
@@ -52,25 +54,21 @@ class HAPDModel(TrainableModel):
         initial_plan = Model()
 
         # Definition of variables
-        E_DW = initial_plan.addMVar(training_length, lb=0, name="E_DW")
-        E_UP = initial_plan.addMVar(training_length, lb=0, name="E_UP")
-        b = initial_plan.addMVar(training_length, vtype=GRB.BINARY, name="b")
-        E_settle = initial_plan.addMVar(training_length, lb=-GRB.INFINITY, name="E_settle")
+        settlements = initial_plan.addMVar(training_length, lb=-GRB.INFINITY, name="settlements")
         qF = initial_plan.addMVar((3, self.n_features + 1, HOURS_PER_DAY), lb=-GRB.INFINITY,
                                   name="qF")
         qH = initial_plan.addMVar((3, self.n_features + 1, HOURS_PER_DAY), lb=-GRB.INFINITY,
                                   name="qH")
-        hydrogen = initial_plan.addMVar(training_length, lb=0, name="hydrogen", ub=self.p_h_max)
-        forward_bid = initial_plan.addMVar(training_length, lb=-self.p_h_max, ub=self.max_wind,
-                                           name="forward_bids")
+        hydrogen_productions = initial_plan.addMVar(training_length, lb=0, name="hydrogen_productions", ub=self.p_h_max)
+        forward_bids = initial_plan.addMVar(training_length, lb=-self.p_h_max, ub=self.max_wind,
+                                            name="forward_bids")
 
         # Maximize profit
         initial_plan.setObjective(
             quicksum(
-                self.prices_F[t + offset] * forward_bid[t]
-                + PRICE_H * hydrogen[t]
-                + self.prices_S[t + offset] * E_DW[t]
-                - self.prices_B[t + offset] * E_UP[t]
+                self.prices_F[t + offset] * forward_bids[t]
+                + PRICE_H * hydrogen_productions[t]
+                + self.single_balancing_prices[t + offset] * settlements[t]
                 for t in range(training_length)
             ),
             GRB.MAXIMIZE
@@ -78,53 +76,43 @@ class HAPDModel(TrainableModel):
 
         # Constraints
         initial_plan.addConstrs(
-            (self.realized[t + offset] - forward_bid[t] - hydrogen[t] == E_settle[t] for t in
+            (self.realized[t + offset] - forward_bids[t] - hydrogen_productions[t] == settlements[t] for t in
              range(training_length)),
             name="settlement")
-        initial_plan.addConstrs((E_DW[t] >= E_settle[t] for t in range(training_length)), name="surplus_settle1")
-        initial_plan.addConstrs((E_DW[t] <= E_settle[t] + self.M * b[t] for t in range(training_length)),
-                                name="surplus_settle2")
-        initial_plan.addConstrs((E_DW[t] <= self.M * (1 - b[t]) for t in range(training_length)),
-                                name="surplus_settle3")
-        initial_plan.addConstrs((E_UP[t] >= -E_settle[t] for t in range(training_length)),
-                                name="deficit_settle1")
-        initial_plan.addConstrs((E_UP[t] <= -E_settle[t] + self.M * (1 - b[t]) for t in range(training_length)),
-                                name="deficit_settle2")
-        initial_plan.addConstrs((E_UP[t] <= self.M * b[t] for t in range(training_length)),
-                                name="deficit_settle3")
 
         for day in range(training_length // HOURS_PER_DAY):
             day_hours = list(range(HOURS_PER_DAY * day, HOURS_PER_DAY * (day + 1)))
-            initial_plan.addConstr(quicksum(hydrogen[t] for t in day_hours) >= self.h_min, name="min_hydrogen")
+            initial_plan.addConstr(quicksum(hydrogen_productions[t] for t in day_hours) >= self.h_min,
+                                   name="min_hydrogen")
             for t in day_hours:
                 index = t % 24
                 if self.prices_F[t + offset] < PRICE_H:
                     initial_plan.addConstr(
-                        forward_bid[t] == quicksum(
+                        forward_bids[t] == quicksum(
                             qF[0, i, index] * self.x.iloc[t + offset, i] for i in range(self.n_features)) +
                         qF[0, self.n_features, index], name="forward_bids")
                     initial_plan.addConstr(
-                        hydrogen[t] == quicksum(
+                        hydrogen_productions[t] == quicksum(
                             qH[0, i, index] * self.x.iloc[t + offset, i] for i in range(self.n_features)) + qH[
-                            0, self.n_features, index], name="hydrogen")
+                            0, self.n_features, index], name="hydrogen_productions")
                 elif self.prices_F[t + offset] < TOP_DOMAIN:
                     initial_plan.addConstr(
-                        forward_bid[t] == quicksum(
+                        forward_bids[t] == quicksum(
                             qF[1, i, index] * self.x.iloc[t + offset, i] for i in range(self.n_features)) +
                         qF[1, self.n_features, index], name="forward_bids")
                     initial_plan.addConstr(
-                        hydrogen[t] == quicksum(
+                        hydrogen_productions[t] == quicksum(
                             qH[1, i, index] * self.x.iloc[t + offset, i] for i in range(self.n_features)) + qH[
-                            1, self.n_features, index], name="hydrogen")
+                            1, self.n_features, index], name="hydrogen_productions")
                 else:
                     initial_plan.addConstr(
-                        forward_bid[t] == quicksum(
+                        forward_bids[t] == quicksum(
                             qF[2, i, index] * self.x.iloc[t + offset, i] for i in range(self.n_features)) +
                         qF[2, self.n_features, index], name="forward_bids")
                     initial_plan.addConstr(
-                        hydrogen[t] == quicksum(
+                        hydrogen_productions[t] == quicksum(
                             qH[2, i, index] * self.x.iloc[t + offset, i] for i in range(self.n_features)) + qH[
-                            2, self.n_features, index], name="hydrogen")
+                            2, self.n_features, index], name="hydrogen_productions")
 
         initial_plan.setParam('OutputFlag', 0)
         initial_plan.setParam('NumericFocus', 1)
@@ -149,10 +137,10 @@ class HAPDModel(TrainableModel):
         ])
 
         dataframe = pd.DataFrame(data.T, columns=names, index=range(HOURS_PER_DAY))
-        if save:
-            self.save_weights(dataframe)
         self.weights = dataframe
         self.trained = True
+        if save:
+            self.save_weights()
 
     def get_schedule_from_weights(self, schedule_length, fm=False):
 

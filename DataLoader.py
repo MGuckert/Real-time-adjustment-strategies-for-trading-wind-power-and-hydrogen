@@ -56,6 +56,7 @@ class DataLoader:
     def build_single_balancing_price(self):
         prices_SB = self.data[['UP', 'DW', 'forward_RE']].apply(
             lambda x: x.iloc[0] if x.iloc[0] != x.iloc[2] else x.iloc[1], axis=1).to_numpy()
+        prices_SB = np.maximum(prices_SB, 0)
         return prices_SB
 
     @staticmethod
