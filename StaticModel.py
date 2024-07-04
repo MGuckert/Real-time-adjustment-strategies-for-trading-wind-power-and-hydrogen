@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from Result import Result
 from constants import *
 from BaseModel import BaseModel
 
@@ -47,8 +48,7 @@ class StaticModel(BaseModel, ABC):
         idx_end = idx_start + eval_length
 
         deviations = []
-        ups = []
-        dws = []
+        settlements = []
         objectives = []
         missing_productions = []
         missing_production = 0
@@ -67,31 +67,19 @@ class StaticModel(BaseModel, ABC):
             settlement = self.realized[t] - forward_bid - h_prod
             daily_count += h_prod
 
-            up = np.maximum(-settlement, 0)
-            dw = np.maximum(settlement, 0)
             obj = (
                     forward_bid * self.prices_F[t]
                     + PRICE_H * h_prod
-                    + dw * self.prices_S[t]
-                    - up * self.prices_B[t]
+                    + settlement * self.single_balancing_prices[t]
                     - missing_production * PENALTY
             )
 
             deviations.append(d)
-            ups.append(up)
             missing_productions.append(missing_production)
             missing_production = 0
-            dws.append(dw)
+            settlements.append(settlement)
             objectives.append(obj)
 
-        results = {
-            "forward_bids": forward_bids,
-            "deviations": deviations,
-            "hydrogen_productions": h_prods,
-            "up": ups,
-            "dw": dws,
-            "missing_productions": missing_productions,
-            "objectives": objectives,
-        }
+        results = Result(forward_bids, deviations, h_prods, settlements, missing_productions, objectives)
 
         return results

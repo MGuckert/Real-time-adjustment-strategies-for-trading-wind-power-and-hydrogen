@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from Result import Result
 from constants import *
 from BaseModel import BaseModel
 
@@ -19,12 +20,8 @@ class TrainableModel(BaseModel, ABC):
     def get_schedule_from_weights(self, idx_end, fm):
         pass
 
-    @abstractmethod
-    def evaluate(self, eval_length):
-        pass
-
-    def save_weights(self, weights):
-        weights.to_csv(os.path.join(self.model_dir, f"{self.name}_weights.csv"), index=False)
+    def save_weights(self):
+        self.weights.to_csv(os.path.join(self.model_dir, f"{self.name}_weights.csv"), index=False)
         print("Weights successfully saved ")
 
     def load_from_weights(self):
@@ -55,8 +52,7 @@ class TrainableModel(BaseModel, ABC):
                 return
 
         deviations = []
-        ups = []
-        dws = []
+        settlements = []
         objectives = []
         missing_productions = []
         missing_production = 0
@@ -79,31 +75,19 @@ class TrainableModel(BaseModel, ABC):
 
             daily_count += h_prod
             settlement = self.realized[t] - forward_bid - h_prod
-            up = np.maximum(-settlement, 0)
-            dw = np.maximum(settlement, 0)
             obj = (
                     forward_bid * self.prices_F[t]
                     + PRICE_H * h_prod
-                    + dw * self.prices_S[t]
-                    - up * self.prices_B[t]
+                    + self.single_balancing_prices[t] * settlement
                     - missing_production * PENALTY
             )
 
             deviations.append(d)
-            ups.append(up)
-            dws.append(dw)
+            settlements.append(settlement)
             missing_productions.append(missing_production)
             missing_production = 0
             objectives.append(obj)
 
-        results = {
-            "forward_bids": forward_bids,
-            "deviations": deviations,
-            "hydrogen_productions": h_prods,
-            "up": ups,
-            "dw": dws,
-            "missing_productions": missing_productions,
-            "objectives": objectives,
-        }
+        results = Result(forward_bids, deviations, h_prods, settlements, missing_productions, objectives)
 
         return results

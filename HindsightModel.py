@@ -1,9 +1,5 @@
-import gurobipy as gp
-from gurobipy import GRB
-
 from StaticModel import StaticModel
-from constants import *
-from real_time_adjustment_utils import compute_objective_variable_bids
+from real_time_adjustment_utils import *
 
 
 class HindsightModel(StaticModel):
@@ -18,18 +14,16 @@ class HindsightModel(StaticModel):
         # Variables
         hydrogen_productions = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0,
                                              ub=self.p_h_max)
-        forward_bids = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='forward_bids', lb=-self.p_h_max,
+        forward_bids = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='forward_bids',
+                                     lb=-self.p_h_max,
                                      ub=self.nominal_wind)
-        up = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='up', lb=0.0)
-        dw = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='dw', lb=0.0)
-        up_aux = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='up_aux', lb=-GRB.INFINITY)
-        dw_aux = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='dw_aux', lb=-GRB.INFINITY)
-
+        settlements = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='settlements', lb=-GRB.INFINITY,
+                                    ub=GRB.INFINITY)
         # Objective
         model.setObjective(
-            compute_objective_variable_bids(day_index, HOURS_PER_DAY, hydrogen_productions, up, dw, forward_bids, self.prices_F,
-                                            self.prices_S,
-                                            self.prices_B),
+            compute_objective_single_price_variable_bids(day_index, HOURS_PER_DAY, hydrogen_productions, settlements,
+                                                         forward_bids, self.prices_F,
+                                                         self.single_balancing_prices),
             GRB.MAXIMIZE)
 
         # Constraints
@@ -37,11 +31,7 @@ class HindsightModel(StaticModel):
 
         for j in range(HOURS_PER_DAY):
             k = day_index + j
-            settlement = self.realized[k] - forward_bids[j] - hydrogen_productions[j]
-            model.addConstr(up_aux[j] == -settlement, f'up_aux_{j}')
-            model.addConstr(dw_aux[j] == settlement, f'dw_aux_{j}')
-            model.addGenConstrMax(up[j], [up_aux[j]], constant=0., name=f'up_{j}')
-            model.addGenConstrMax(dw[j], [dw_aux[j]], constant=0., name=f'dw_{j}')
+            model.addConstr(settlements[j] == self.realized[k] - forward_bids[j] - hydrogen_productions[j], name='settlement')
 
         model.setParam('OutputFlag', 0)
         model.setParam('NumericFocus', 1)

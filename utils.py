@@ -20,17 +20,8 @@ def get_average_hydrogen_production_per_day(result):
         [np.sum(result["hydrogen_productions"][i:i + 24]) for i in range(0, len(result["hydrogen_productions"]), 24)])
 
 
-def plot_average_hydrogen_production_per_day_distribution(result):
-    plt.hist(
-        [np.sum(result["hydrogen_productions"][i:i + 24]) for i in range(0, len(result["hydrogen_productions"]), 24)],
-        bins=20)
-    plt.xlabel('Average Hydrogen Production per Day')
-    plt.ylabel('Frequency')
-    plt.title('Distribution of Average Hydrogen Production per Day')
-    plt.show()
-
-
 def plot_hydrogen_production(result):
+    plt.figure(figsize=(15, 5))
     plt.plot(result["hydrogen_productions"])
     plt.xlabel('Hour')
     plt.ylabel('Hydrogen Production')
@@ -39,11 +30,32 @@ def plot_hydrogen_production(result):
 
 
 def plot_hydrogen_production_per_day(result):
+    plt.figure(figsize=(15, 5))
     plt.plot(
         [np.sum(result["hydrogen_productions"][i:i + 24]) for i in range(0, len(result["hydrogen_productions"]), 24)])
     plt.xlabel('Day')
     plt.ylabel('Hydrogen Production')
     plt.title('Hydrogen Production per Day')
+    plt.show()
+
+
+def plot_forward_bids(result):
+    plt.figure(figsize=(15, 5))
+    plt.plot(result["forward_bids"])
+    plt.xlabel('Hour')
+    plt.ylabel('Forward Bids')
+    plt.title('Forward Bids over Time')
+    plt.show()
+
+
+def plot_histogram_hydrogen_production(results, model_names, fig_title, save_fig=False, fig_name=None):
+    plt.figure(figsize=(15, 5))
+    hydrogen_productions = [get_total_hydrogen_production(result) for result in results]
+    plt.bar(model_names, hydrogen_productions)
+    plt.xlabel('Model', fontweight='bold')
+    plt.ylabel('Hydrogen Production', fontweight='bold')
+    plt.title(fig_title)
+
     plt.show()
 
 
@@ -91,3 +103,7 @@ def plot_objectives(results, model_names, fig_title, save_fig=False, fig_name=No
             print("No figure name provided, saving as 'objectives_plot.png' by default.")
             fig_name = "objectives_plot.png"
         plt.savefig(fig_name)
+
+
+def get_mao(results):
+    return [np.sum(results[3]['objectives']) - np.sum(results[i]['objectives']) for i in range(len(results) - 1)]
