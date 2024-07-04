@@ -20,6 +20,16 @@ def get_average_hydrogen_production_per_day(result):
         [np.sum(result["hydrogen_productions"][i:i + 24]) for i in range(0, len(result["hydrogen_productions"]), 24)])
 
 
+def plot_average_hydrogen_production_per_day_distribution(result):
+    plt.hist(
+        [np.sum(result["hydrogen_productions"][i:i + 24]) for i in range(0, len(result["hydrogen_productions"]), 24)],
+        bins=20)
+    plt.xlabel('Average Hydrogen Production per Day')
+    plt.ylabel('Frequency')
+    plt.title('Distribution of Average Hydrogen Production per Day')
+    plt.show()
+
+
 def plot_hydrogen_production(result):
     plt.plot(result["hydrogen_productions"])
     plt.xlabel('Hour')
