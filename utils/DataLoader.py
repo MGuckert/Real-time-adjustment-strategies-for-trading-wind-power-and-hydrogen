@@ -2,7 +2,7 @@ from typing import Any
 
 import pandas as pd
 
-from constants import *
+from utils.constants import *
 
 
 class DataLoader:

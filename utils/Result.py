@@ -55,10 +55,10 @@ class Result:
 
     @staticmethod
     def plot_objectives(results, model_names, fig_title, save_fig=False, fig_name=None):
-        original_obj = [result.get_total_objective() for result in results]
-        original_adj_obj = [result.get_total_objective() - result.get_total_objective() for result in results]
-        mpc_adj_obj = [result.get_total_objective() - result.get_total_objective() for result in results]
-        local_hindsight_obj = [result.get_total_objective() if len(results) > 3 else None for result in results]
+        original_obj = [result[0].get_total_objective() for result in results]
+        original_adj_obj = [result[1].get_total_objective() - result[0].get_total_objective() for result in results]
+        mpc_adj_obj = [result[2].get_total_objective() - result[0].get_total_objective() for result in results]
+        local_hindsight_obj = [result[3].get_total_objective() if len(result) > 3 else None for result in results]
         bar_width = 0.4
         adjust_width = bar_width / 2
         r1 = np.arange(len(original_obj))

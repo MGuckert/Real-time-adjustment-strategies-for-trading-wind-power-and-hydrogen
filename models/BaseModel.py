@@ -5,6 +5,8 @@ from abc import ABC
 from utils.DataLoader import DataLoader
 from utils.Result import Result
 from utils.real_time_adjustment_utils import *
+import gurobipy as gp
+from gurobipy import GRB
 
 
 class BaseModel(ABC):
@@ -101,11 +103,11 @@ class BaseModel(ABC):
         results = copy.deepcopy(results)
 
         idx_start = self.test_start_index
-        idx_end = idx_start + len(results['forward_bids'])
+        idx_end = idx_start + len(results.forward_bids)
 
         deviations, h_prods, settlements_list, objectives, missing_productions = [], [], [], [], []
 
-        forward_bids = results['forward_bids']
+        forward_bids = results.forward_bids
 
         h_prod = []
 
@@ -186,7 +188,7 @@ class BaseModel(ABC):
         results = copy.deepcopy(results)
 
         idx_start = self.test_start_index
-        idx_end = idx_start + len(results['forward_bids'])
+        idx_end = idx_start + len(results.forward_bids)
 
         min_production = self.h_min
 
@@ -205,8 +207,8 @@ class BaseModel(ABC):
                 missing_production = np.maximum(min_production - daily_count, 0)
                 daily_count = 0
 
-            forward_bid = results['forward_bids'][i]
-            h_prod = results['hydrogen_productions'][i]
+            forward_bid = results.forward_bids[i]
+            h_prod = results.hydrogen_productions[i]
 
             d = self.realized[t] - forward_bid
 
@@ -222,7 +224,7 @@ class BaseModel(ABC):
                     remaining_planned = 0
                 else:
                     remaining_planned = np.sum(
-                        [results['hydrogen_productions'][i + j] for j in range(remaining_hours + 1)])
+                        [results.hydrogen_productions[i + j] for j in range(remaining_hours + 1)])
                 surplus = daily_count + remaining_planned - min_production
                 wanted = h_prod - opt_h
                 if surplus >= wanted:
@@ -260,9 +262,9 @@ class BaseModel(ABC):
         results = copy.deepcopy(results)
 
         idx_start = self.test_start_index
-        idx_end = idx_start + len(results['forward_bids'])
+        idx_end = idx_start + len(results.forward_bids)
 
-        forward_bids = results['forward_bids']
+        forward_bids = results.forward_bids
 
         deviations, h_prods, settlements_list, objectives, missing_productions = [], [], [], [], []
         missing_production = daily_count = 0
@@ -351,9 +353,9 @@ class BaseModel(ABC):
         results = copy.deepcopy(results)
 
         idx_start = self.test_start_index
-        idx_end = idx_start + len(results['forward_bids'])
+        idx_end = idx_start + len(results.forward_bids)
 
-        forward_bids = results['forward_bids']
+        forward_bids = results.forward_bids
 
         deviations, h_prods, settlements, objectives, missing_productions = [], [], [], [], []
         missing_production = daily_count = 0

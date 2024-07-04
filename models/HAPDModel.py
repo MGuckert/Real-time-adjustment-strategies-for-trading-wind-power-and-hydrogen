@@ -1,8 +1,8 @@
 from gurobipy import Model, GRB, quicksum
 
-from TrainableModel import TrainableModel
+from models.TrainableModel import TrainableModel
 from utils.constants import *
-from utils import get_forward_24, get_hydro_24
+from utils.utils import get_forward_24, get_hydro_24
 
 
 class HAPDModel(TrainableModel):

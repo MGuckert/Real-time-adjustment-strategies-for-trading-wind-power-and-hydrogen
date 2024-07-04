@@ -25,11 +25,11 @@ PENALTY = 80.61  # Value equal to the 95% quantile of the buy prices
 TOP_DOMAIN = 53.32  # 90%
 
 # Main datafile
-DATAFILE = "./data/2020_data.csv"
+DATAFILE = "../data/2020_data.csv"
 
 ROLLING_FORECASTS_FILE = "../forecasting/rolling_forecasts_2021_2022.csv"
 
-RESULTS_DIR = os.path.join(os.getcwd(), "results/2020_python")
+RESULTS_DIR = os.path.join(os.getcwd(), "../results/2020_python")
 
 Q_FORECAST_CALCULATED = [12.195654545757634, 0.5299454470522954, 1.2367673427003123, -0.5444726493505923,
                          4.9381332869069965]

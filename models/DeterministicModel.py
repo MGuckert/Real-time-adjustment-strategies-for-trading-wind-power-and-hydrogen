@@ -1,6 +1,6 @@
 from gurobipy import Model, GRB, quicksum
 
-from StaticModel import StaticModel
+from models.StaticModel import StaticModel
 from utils.constants import *
 
 
