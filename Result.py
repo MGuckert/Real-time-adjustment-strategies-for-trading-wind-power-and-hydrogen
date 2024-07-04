@@ -13,16 +13,6 @@ class Result:
         self.objectives = objectives
         self.forward_bids = forward_bids
 
-    # def to_dict(self):
-    #     return {
-    #         "forward_bids": self.forward_bids,
-    #         "deviations": self.deviations,
-    #         "hydrogen_productions": self.hydrogen_productions,
-    #         "settlements": self.settlements,
-    #         "missing_productions": self.missing_productions,
-    #         "objectives": self.objectives
-    #     }
-
     def get_total_objective(self) -> float:
         return np.sum(self.objectives)
 
@@ -44,11 +34,11 @@ class Result:
         plt.title('Hydrogen Production over Time')
         plt.show()
 
-    def plot_hydrogen_production_per_day(self):
+    def plot_hydrogen_production_per_day_histogram(self):
         plt.figure(figsize=(15, 5))
-        plt.plot(
-            [np.sum(self.hydrogen_productions[i:i + 24]) for i in range(0, len(self.hydrogen_productions), 24)])
-        plt.xlabel('Day')
+        plt.hist(
+            [np.sum(self.hydrogen_productions[i:i + 24]) for i in range(0, len(self.hydrogen_productions), 24)], bins=20)
+        plt.xlabel('Frequency')
         plt.ylabel('Hydrogen Production')
         plt.title('Hydrogen Production per Day')
         plt.show()
