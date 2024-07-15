@@ -51,19 +51,18 @@ class BaseModel(ABC):
             Q_FORECAST_CALCULATED[i] * self.x.iloc[t, i] for i in range(self.n_features - 1)) + Q_INTERCEPT_CALCULATED,
                       prices_F[t]) for t in range(len(prices_F))]
 
-        prices_B, prices_S, prices_F, prices_forecast, features, features_red, realized, forecasted_prod = self.data_loader.build_all(
+        prices_SB, prices_F, prices_forecast, features, features_red, realized, forecasted_prod = self.data_loader.build_all(
             self.nominal_wind)
-        self.prices_B = prices_B
-        self.prices_S = prices_S
+        self.single_balancing_prices = prices_SB
         self.prices_F = prices_F
         self.prices_forecast = prices_forecast
         self.realized = realized
         self.forecasted_prod = forecasted_prod
         self.rolling_forecasts = self.data_loader.load_rolling_forecasts(self.nominal_wind)
-        self.single_balancing_prices = self.data_loader.build_single_balancing_price()
 
+    # TODO: Implement this method in each subclass
     @staticmethod
-    def load_from_config(model_name, model_class):
+    def load(model_name, model_class):
         model_dir = os.path.join(RESULTS_DIR, model_name)
         if not os.path.exists(model_dir):
             raise FileNotFoundError(f"No model found with name {model_name}.")
@@ -124,9 +123,9 @@ class BaseModel(ABC):
 
             # Objective
             model.setObjective(
-                compute_objective_single_price_fixed_bids(t, idx_start, HOURS_PER_DAY, p_adj, settlements, forward_bids,
-                                                          self.prices_F,
-                                                          self.single_balancing_prices),
+                compute_objective_fixed_bids(t, idx_start, HOURS_PER_DAY, p_adj, settlements, forward_bids,
+                                             self.prices_F,
+                                             self.single_balancing_prices),
                 GRB.MAXIMIZE)
 
             # Constraints
@@ -212,7 +211,7 @@ class BaseModel(ABC):
 
             d = self.realized[t] - forward_bid
 
-            opt_h = get_hydro_opt(self.single_balancing_prices[t],self.p_h_max)
+            opt_h = get_hydro_opt(self.single_balancing_prices[t], self.p_h_max)
 
             if opt_h > h_prod:
                 if printing:
@@ -292,17 +291,20 @@ class BaseModel(ABC):
 
                 # Objective
                 model.setObjective(
-                    compute_objective_single_price_fixed_bids(t, idx_start, hours_left, p_adj, settlements,
-                                                              forward_bids, self.prices_F,
-                                                              self.single_balancing_prices), GRB.MAXIMIZE)
+                    compute_objective_fixed_bids(t, idx_start, hours_left, p_adj, settlements,
+                                                 forward_bids, self.prices_F,
+                                                 self.single_balancing_prices), GRB.MAXIMIZE)
 
                 # Constraints
                 model.addConstr(self.h_min <= p_adj.sum() + daily_count, 'Daily Production')
 
-                model.addConstr(settlements[0] == self.realized[t] - forward_bids[t - idx_start] - p_adj[0], 'settlement')
-                for j in range(1,hours_left):
+                model.addConstr(settlements[0] == self.realized[t] - forward_bids[t - idx_start] - p_adj[0],
+                                'settlement')
+                for j in range(1, hours_left):
                     k = t + j
-                    model.addConstr(settlements[j] == self.rolling_forecasts[t][j] - forward_bids[k - idx_start] - p_adj[j], 'settlement')
+                    model.addConstr(
+                        settlements[j] == self.rolling_forecasts[t][j] - forward_bids[k - idx_start] - p_adj[j],
+                        'settlement')
 
                 model.setParam('OutputFlag', 0)
                 model.optimize()
@@ -347,7 +349,7 @@ class BaseModel(ABC):
 
         return results
 
-    def MPC_adjustment_with_DA_forecasts(self, results, verbose=False):
+    def MPC_adjustment_with_naive_balancing_forecasts(self, results, lag, verbose=False):
         day_ahead_forecasts = self.x['production_FC'].to_numpy()
 
         results = copy.deepcopy(results)
@@ -357,7 +359,7 @@ class BaseModel(ABC):
 
         forward_bids = results.forward_bids
 
-        deviations, h_prods, settlements, objectives, missing_productions = [], [], [], [], []
+        deviations, h_prods, settlements_list, objectives, missing_productions = [], [], [], [], []
         missing_production = daily_count = 0
 
         for t in range(idx_start, idx_end):
@@ -383,9 +385,9 @@ class BaseModel(ABC):
 
                 # Objective
                 model.setObjective(
-                    compute_objective_single_price_fixed_bids(t, idx_start, hours_left, p_adj, settlements,
-                                                              forward_bids, self.prices_F,
-                                                              self.single_balancing_prices), GRB.MAXIMIZE)
+                    compute_objective_fixed_bids_balancing_prices(t, idx_start, hours_left, p_adj, settlements,
+                                                                  forward_bids, self.prices_F,
+                                                                  self.single_balancing_prices, lag), GRB.MAXIMIZE)
 
                 # Constraints
                 model.addConstr(self.h_min <= p_adj.sum() + daily_count, 'Daily Production')
@@ -409,7 +411,7 @@ class BaseModel(ABC):
                 h_adj = np.maximum(0, np.minimum(self.p_h_max, p_adj[0].X))
 
             else:
-                h_adj = get_hydro_opt(self.single_balancing_prices, self.p_h_max)
+                h_adj = get_hydro_opt(self.single_balancing_prices[t], self.p_h_max)
 
             daily_count += h_adj
             settlement = self.realized[t] - forward_bid - h_adj
@@ -423,7 +425,7 @@ class BaseModel(ABC):
 
             deviations.append(d)
             h_prods.append(h_adj)
-            settlements.append(settlement)
+            settlements_list.append(settlement)
             missing_productions.append(missing_production)
             objectives.append(obj_val)
             missing_production = 0
@@ -431,12 +433,12 @@ class BaseModel(ABC):
             if verbose:
                 print(f"Time {t}:")
                 print(f"  Prices: {self.prices_B[t]}, {self.prices_S[t]}, {self.prices_F[t]}")
-                print(f"  Forward Bid: {forward_bids[t]}")
+                print(f"  Forward Bid: {forward_bid}")
                 print(f"  Realized: {self.realized[t]}")
                 print(f"  Adjustment: {h_adj}")
                 print(f"  Settlement: {settlement}")
                 print(f"  Objective Value: {obj_val}")
 
-        results = Result(forward_bids, deviations, h_prods, settlements, missing_productions, objectives)
+        results = Result(forward_bids, deviations, h_prods, settlements_list, missing_productions, objectives)
 
         return results

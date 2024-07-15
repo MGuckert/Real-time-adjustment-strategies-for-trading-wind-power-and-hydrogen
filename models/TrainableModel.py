@@ -22,7 +22,7 @@ class TrainableModel(BaseModel, ABC):
 
     def save_weights(self):
         self.weights.to_csv(os.path.join(self.model_dir, f"{self.name}_weights.csv"), index=False)
-        print("Weights successfully saved ")
+        print("Weights successfully saved")
 
     def load_from_weights(self):
         filepath = os.path.join(self.model_dir, f"{self.name}_weights.csv")
@@ -30,7 +30,7 @@ class TrainableModel(BaseModel, ABC):
             raise FileNotFoundError("No weights found")
         self.weights = pd.read_csv(filepath)
         self.trained = True
-        print("Weights successfully loaded ")
+        print("Weights successfully loaded")
 
     def evaluate(self, eval_length, fm=False):
         """

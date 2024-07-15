@@ -33,11 +33,10 @@ class DataLoader:
         return features_red
 
     def build_prices(self) -> Any:
-        prices_B = np.maximum(self.data["UP"].to_numpy(), 0)
-        prices_S = np.maximum(self.data["DW"].to_numpy(), 0)
+        prices_SB = np.maximum(self.data["prices_SB"].to_numpy(), 0)
         prices_F = np.maximum(self.data["forward_RE"].to_numpy(), 0)
         prices_forecast = np.maximum(self.data["forward_FC"].to_numpy(), 0)
-        return prices_B, prices_S, prices_F, prices_forecast
+        return prices_SB, prices_F, prices_forecast
 
     def build_production(self) -> Any:
         realized_prod = self.data["production_RE"].to_numpy()
@@ -45,19 +44,13 @@ class DataLoader:
         return realized_prod, forecasted_prod
 
     def build_all(self, nominal_wind: int = NOMINAL_WIND) -> Any:
-        prices_B, prices_S, prices_F, prices_forecast = self.build_prices()
+        prices_SB, prices_F, prices_forecast = self.build_prices()
         features = self.build_features()
         features_red = self.build_features_red()
         realized_prod, forecasted_prod = self.build_production()
         realized_prod *= nominal_wind
         forecasted_prod *= nominal_wind
-        return prices_B, prices_S, prices_F, prices_forecast, features, features_red, realized_prod, forecasted_prod
-
-    def build_single_balancing_price(self):
-        prices_SB = self.data[['UP', 'DW', 'forward_RE']].apply(
-            lambda x: x.iloc[0] if x.iloc[0] != x.iloc[2] else x.iloc[1], axis=1).to_numpy()
-        prices_SB = np.maximum(prices_SB, 0)
-        return prices_SB
+        return prices_SB, prices_F, prices_forecast, features, features_red, realized_prod, forecasted_prod
 
     @staticmethod
     def load_production_forecasts() -> pd.Series:
