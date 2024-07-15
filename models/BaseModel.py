@@ -1,6 +1,6 @@
 import copy
 import json
-from abc import ABC
+from abc import ABC, abstractmethod
 
 from utils.DataLoader import DataLoader
 from utils.Result import Result
@@ -60,15 +60,9 @@ class BaseModel(ABC):
         self.forecasted_prod = forecasted_prod
         self.rolling_forecasts = self.data_loader.load_rolling_forecasts(self.nominal_wind)
 
-    # TODO: Implement this method in each subclass
-    @staticmethod
-    def load(model_name, model_class):
-        model_dir = os.path.join(RESULTS_DIR, model_name)
-        if not os.path.exists(model_dir):
-            raise FileNotFoundError(f"No model found with name {model_name}.")
-        with open(os.path.join(model_dir, "config.json"), "r") as f:
-            config = json.load(f)
-        return model_class(**config)
+    @abstractmethod
+    def load(self, model_name):
+        pass
 
     def save_results(self, results, flag=""):
         results_dict = results.__dict__

@@ -1,3 +1,5 @@
+import json
+
 from gurobipy import Model, GRB, quicksum
 
 from models.TrainableModel import TrainableModel
@@ -13,6 +15,14 @@ class HAPDModel(TrainableModel):
         super().__init__(name, test_start_index, datafile=datafile, nominal_wind=nominal_wind, max_wind=max_wind,
                          p_h_max=p_h_max,
                          h_min=h_min)
+
+    def load(self, model_name):
+        model_dir = os.path.join(RESULTS_DIR, model_name)
+        if not os.path.exists(model_dir):
+            raise FileNotFoundError(f"No model found with name {model_name}.")
+        with open(os.path.join(model_dir, "config.json"), "r") as f:
+            config = json.load(f)
+        return HAPDModel(**config)
 
     def compute_optimal_weights(self, training_length):
 

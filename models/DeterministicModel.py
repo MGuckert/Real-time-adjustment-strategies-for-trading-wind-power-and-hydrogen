@@ -1,3 +1,5 @@
+import json
+
 from gurobipy import Model, GRB, quicksum
 
 from models.StaticModel import StaticModel
@@ -9,6 +11,14 @@ class DeterministicModel(StaticModel):
                  p_h_max=P_H_MAX,
                  h_min=H_MIN):
         super().__init__(name, test_start_index, datafile, nominal_wind, max_wind, p_h_max, h_min)
+
+    def load(self, model_name):
+        model_dir = os.path.join(RESULTS_DIR, model_name)
+        if not os.path.exists(model_dir):
+            raise FileNotFoundError(f"No model found with name {model_name}.")
+        with open(os.path.join(model_dir, "config.json"), "r") as f:
+            config = json.load(f)
+        return DeterministicModel(**config)
 
     def get_daily_plan(self, day_index):
         offset = day_index
