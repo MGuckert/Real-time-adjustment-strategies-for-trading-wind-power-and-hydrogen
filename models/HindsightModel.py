@@ -23,9 +23,9 @@ class HindsightModel(StaticModel):
                                     ub=GRB.INFINITY)
         # Objective
         model.setObjective(
-            compute_objective_single_price_variable_bids(day_index, HOURS_PER_DAY, hydrogen_productions, settlements,
-                                                         forward_bids, self.prices_F,
-                                                         self.single_balancing_prices),
+            compute_objective_variable_bids(day_index, HOURS_PER_DAY, hydrogen_productions, settlements,
+                                            forward_bids, self.prices_F,
+                                            self.single_balancing_prices),
             GRB.MAXIMIZE)
 
         # Constraints
