@@ -1,6 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import utils.constants
 import seaborn as sns
+
+sns.reset_orig()
 
 
 class Result:
@@ -15,6 +18,12 @@ class Result:
 
     def get_total_objective(self) -> float:
         return np.sum(self.objectives)
+
+    def get_total_missing_production(self) -> float:
+        return np.sum(self.missing_productions)
+
+    def get_penalty(self) -> float:
+        return np.sum(self.missing_productions) * utils.constants.PENALTY
 
     def get_total_hydrogen_production(self) -> float:
         return np.sum(self.hydrogen_productions)
@@ -34,13 +43,19 @@ class Result:
         plt.title('Hydrogen Production over Time')
         plt.show()
 
-    def plot_hydrogen_production_per_day_histogram(self):
+    def plot_hydrogen_production_per_day_histogram(self,title='Hydrogen Production per Day'):
         plt.figure(figsize=(15, 5))
         plt.hist(
-            [np.sum(self.hydrogen_productions[i:i + 24]) for i in range(0, len(self.hydrogen_productions), 24)], bins=20)
-        plt.xlabel('Frequency')
-        plt.ylabel('Hydrogen Production')
-        plt.title('Hydrogen Production per Day')
+            [np.sum(self.hydrogen_productions[i:i + 24]) for i in range(0, len(self.hydrogen_productions), 24)],
+            edgecolor='k', alpha=0.7, bins=20)
+        plt.axvline(np.mean(
+            [np.sum(self.hydrogen_productions[i:i + 24]) for i in range(0, len(self.hydrogen_productions), 24)]),
+                    color='r', linestyle='dashed', linewidth=1,label='Mean')
+        plt.xlim(0, 240)
+        plt.xlabel('Hydrogen Production',fontsize=12)
+        plt.ylabel('Frequency',fontsize=12)
+        plt.title(title,fontsize=14)
+        plt.legend()
         plt.show()
 
     def plot_forward_bids(self):
@@ -51,6 +66,14 @@ class Result:
         plt.xlabel('Hour')
         plt.ylabel('Forward Bids')
         plt.title('Forward Bids over Time')
+        plt.show()
+
+    def plot_objective(self):
+        plt.figure(figsize=(15, 5))
+        plt.plot(np.cumsum(self.objectives))
+        plt.xlabel('Hour')
+        plt.ylabel('Objective')
+        plt.title('Cumulative Objective over Time')
         plt.show()
 
     @staticmethod

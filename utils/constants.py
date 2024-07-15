@@ -2,6 +2,12 @@ import numpy as np
 import pandas as pd
 import os
 
+# Flags for results
+ORIGINAL = "original"
+MPC = "mpc_adj"
+BEST = "best_adj"
+RULE = "rule_based_adj"
+
 # Constants
 HOURS_PER_DAY = 24  # 24 hours
 HOURS_PER_WEEK = 168  # 7 days
@@ -25,9 +31,9 @@ PENALTY = 80.61  # Value equal to the 95% quantile of the buy prices
 TOP_DOMAIN = 53.32  # 90%
 
 # Main datafile
-DATAFILE = "../data/2020_data.csv"
+DATAFILE = "../data/2022_2023/2022_2023_data.csv"
 
-ROLLING_FORECASTS_FILE = "../forecasting/rolling_forecasts_2021_2022.csv"
+ROLLING_FORECASTS_FILE = "../forecasting/rolling_forecasts_2019_2020.csv"
 
 RESULTS_DIR = os.path.join(os.getcwd(), "../results/2020_python")
 
