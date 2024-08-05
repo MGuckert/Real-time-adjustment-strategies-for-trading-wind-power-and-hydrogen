@@ -1,0 +1,1 @@
+{"name": "unconstrained_hindsight", "nominal_wind": 10, "max_wind": 10, "p_h_max": 10, "h_min": 50, "test_start_index": 8640, "datafile": "../data/2022_2023/2022_2023_data.csv"}
