@@ -4,9 +4,10 @@ import os
 
 # Flags for results
 ORIGINAL = "original"
-MPC = "mpc_adj"
 BEST = "best_adj"
 RULE = "rule_based_adj"
+NAIVE_MPC = "naive_mpc_adj"
+STOCHASTIC_MPC = "stochastic_mpc_adj"
 
 # Constants
 HOURS_PER_DAY = 24  # 24 hours

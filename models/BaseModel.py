@@ -112,8 +112,8 @@ class BaseModel(ABC):
             model = gp.Model('Hindsight')
 
             # Variables
-            p_adj = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
-            settlements = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='settlements',
+            p_adj = model.addVars(HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+            settlements = model.addVars(HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='settlements',
                                         lb=-GRB.INFINITY, ub=GRB.INFINITY)
 
             # Objective
@@ -281,8 +281,8 @@ class BaseModel(ABC):
                 model = gp.Model('Real Time Adjustment')
 
                 # Variables
-                p_adj = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
-                settlements = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='settlements',
+                p_adj = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                settlements = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='settlements',
                                             lb=-GRB.INFINITY,
                                             ub=GRB.INFINITY)
 
@@ -375,8 +375,8 @@ class BaseModel(ABC):
                 model = gp.Model('Real Time Adjustment')
 
                 # Variables
-                p_adj = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
-                settlements = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='settlements',
+                p_adj = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                settlements = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='settlements',
                                             lb=-GRB.INFINITY,
                                             ub=GRB.INFINITY)
 
@@ -585,7 +585,7 @@ class BaseModel(ABC):
         return results
 
     def stochastic_MPC_adjustment_load_scenarios(self, results,
-                                                 scenarios_file='../results/stochastic_optimization/scenarios_hmin50.npy',
+                                                 scenarios_file='../results/stochastic_optimization/100_balancing_prices_scenarios_year.npy',
                                                  verbose=False, num_scenarios=10):
 
         results = copy.deepcopy(results)
