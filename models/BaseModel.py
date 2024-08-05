@@ -460,7 +460,7 @@ class BaseModel(ABC):
         return results
 
     def stochastic_MPC_adjustment(self, results, transition_matrices, arma_model_up, arma_model_dw, epsilon,
-                              prices_diff, balancing_states, verbose=False, num_scenarios=10):
+                                  prices_diff, balancing_states, verbose=False, num_scenarios=10):
 
         results = copy.deepcopy(results)
 
@@ -511,17 +511,19 @@ class BaseModel(ABC):
                 model = gp.Model('Stochastic Real Time Adjustment')
 
                 # Variables
-                p_adj = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
-                settlements = model.addMVar(shape=(num_scenarios, hours_left), vtype=GRB.CONTINUOUS, name='settlements',
+                p_adj = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                settlements = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='settlements',
                                             lb=-GRB.INFINITY, ub=GRB.INFINITY)
+
+                p_adj = np.array([p_adj[j] for j in range(hours_left)])
+                settlements = np.array([settlements[j] for j in range(hours_left)])
 
                 # Set the objective to maximize the expected objective across scenarios
                 model.setObjective(
-                    quicksum(compute_objective_fixed_bids_balancing_prices_forecasts(t, idx_start, hours_left, p_adj,
-                                                                                     settlements[s],
-                                                                                     forward_bids, self.prices_F,
-                                                                                     scenario_balancing_prices[s])
-                             for s in range(num_scenarios)) / num_scenarios, GRB.MAXIMIZE)
+                    compute_objective_fixed_bids_balancing_prices_forecasts(hours_left, p_adj,
+                                                                            settlements,
+                                                                            scenario_balancing_prices),
+                    GRB.MAXIMIZE)
 
                 # Constraints
                 model.addConstr(self.h_min <= p_adj.sum() + daily_count, 'Daily Production')
@@ -583,15 +585,12 @@ class BaseModel(ABC):
         return results
 
     def stochastic_MPC_adjustment_load_scenarios(self, results,
-                                             scenarios_file='../results/stochastic_optimization/scenarios_hmin50.npy',
-                                             verbose=False, num_scenarios=10):
+                                                 scenarios_file='../results/stochastic_optimization/scenarios_hmin50.npy',
+                                                 verbose=False, num_scenarios=10):
 
         results = copy.deepcopy(results)
 
         scenarios = np.load(scenarios_file)
-
-        #TODO: Remove seed after testing
-        np.random.seed(42)
 
         idx_start = self.test_start_index
         idx_end = idx_start + len(results.forward_bids)
@@ -620,28 +619,30 @@ class BaseModel(ABC):
             if daily_count < self.h_min:
                 # Generate scenarios
 
-                model = gp.Model('Stochastic Real Time Adjustment')
+                model = gp.Model('Robust Real Time Adjustment')
 
                 # Variables
-                p_adj = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
-                settlements = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='settlements',
+                p_adj = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                settlements = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='settlements',
                                             lb=-GRB.INFINITY, ub=GRB.INFINITY)
+
+                p_adj = np.array([p_adj[j] for j in range(hours_left)])
+                settlements = np.array([settlements[j] for j in range(hours_left)])
 
                 # Set the objective to maximize the expected objective across scenarios
                 model.setObjective(
-                    quicksum(compute_objective_fixed_bids_balancing_prices_forecasts(t, idx_start, hours_left, p_adj,
-                                                                                     settlements,
-                                                                                     forward_bids, self.prices_F,
-                                                                                     scenario_balancing_prices[s])
-                             for s in range(num_scenarios)) / num_scenarios, GRB.MAXIMIZE)
+                    compute_objective_fixed_bids_balancing_prices_forecasts(hours_left, p_adj,
+                                                                            settlements,
+                                                                            scenario_balancing_prices),
+                    GRB.MAXIMIZE)
 
                 # Constraints
                 model.addConstr(self.h_min <= p_adj.sum() + daily_count, 'Daily Production')
 
                 for j in range(hours_left):
+                    k = t + j
                     model.addConstr(
-                        settlements[j] == self.forecasted_prod[t + j] - forward_bids[t + j - idx_start] - p_adj[
-                            j],
+                        settlements[j] == self.forecasted_prod[k] - forward_bids[k - idx_start] - p_adj[j],
                         f'settlement_scenario_{j}')
 
                 model.setParam('OutputFlag', 0)
