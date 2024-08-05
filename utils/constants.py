@@ -35,7 +35,7 @@ DATAFILE = "../data/2022_2023/2022_2023_data.csv"
 
 ROLLING_FORECASTS_FILE = "../forecasting/rolling_forecasts_2019_2020.csv"
 
-RESULTS_DIR = os.path.join(os.getcwd(), "../results/2020_python")
+RESULTS_DIR = os.path.join(os.getcwd(), "../results/models")
 
 Q_FORECAST_CALCULATED = [12.195654545757634, 0.5299454470522954, 1.2367673427003123, -0.5444726493505923,
                          4.9381332869069965]
