@@ -16,6 +16,15 @@ class Result:
         self.objectives = objectives
         self.forward_bids = forward_bids
 
+    def __eq__(self, other):
+        if not isinstance(other, Result):
+            return False
+        return (self.forward_bids == other.forward_bids) and (self.deviations == other.deviations) and (
+                self.hydrogen_productions == other.hydrogen_productions) and (
+                self.settlements == other.settlements) and (
+                self.missing_productions == other.missing_productions) and (
+                self.objectives == other.objectives)
+
     def get_total_objective(self) -> float:
         return np.sum(self.objectives)
 
@@ -35,6 +44,11 @@ class Result:
         return np.mean(
             [np.sum(self.hydrogen_productions[i:i + 24]) for i in range(0, len(self.hydrogen_productions), 24)])
 
+    def get_average_hour_at_which_quota_is_met(self, h_min) -> float:
+        # Returns the average hour for each day at which the quota is met (cumulative hydrogen production >= h_min)
+        return np.mean([np.argmax(np.cumsum(self.hydrogen_productions[i:i + 24]) >= h_min) for i in
+                        range(0, len(self.hydrogen_productions), 24)])
+
     def plot_hydrogen_production(self):
         plt.figure(figsize=(15, 5))
         plt.plot(self.hydrogen_productions)
@@ -43,18 +57,18 @@ class Result:
         plt.title('Hydrogen Production over Time')
         plt.show()
 
-    def plot_hydrogen_production_per_day_histogram(self,title='Hydrogen Production per Day'):
+    def plot_hydrogen_production_per_day_histogram(self, title='Hydrogen Production per Day'):
         plt.figure(figsize=(15, 5))
         plt.hist(
             [np.sum(self.hydrogen_productions[i:i + 24]) for i in range(0, len(self.hydrogen_productions), 24)],
             edgecolor='k', alpha=0.7, bins=20)
         plt.axvline(np.mean(
             [np.sum(self.hydrogen_productions[i:i + 24]) for i in range(0, len(self.hydrogen_productions), 24)]),
-                    color='r', linestyle='dashed', linewidth=1,label='Mean')
+            color='r', linestyle='dashed', linewidth=1, label='Mean')
         plt.xlim(0, 240)
-        plt.xlabel('Hydrogen Production',fontsize=12)
-        plt.ylabel('Frequency',fontsize=12)
-        plt.title(title,fontsize=14)
+        plt.xlabel('Hydrogen Production', fontsize=12)
+        plt.ylabel('Frequency', fontsize=12)
+        plt.title(title, fontsize=14)
         plt.legend()
         plt.show()
 
