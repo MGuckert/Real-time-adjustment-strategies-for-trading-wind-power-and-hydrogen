@@ -13,7 +13,8 @@ class DeterministicModelBalancing(StaticModel):
         super().__init__(name, test_start_index, datafile, nominal_wind, max_wind, p_h_max, h_min)
         self.balancing_prices_lag = balancing_prices_lag
 
-    def load(self, model_name):
+    @staticmethod
+    def load(model_name):
         model_dir = os.path.join(RESULTS_DIR, model_name)
         if not os.path.exists(model_dir):
             raise FileNotFoundError(f"No model found with name {model_name}.")
@@ -46,6 +47,11 @@ class DeterministicModelBalancing(StaticModel):
         # Min production
         deterministic_plan.addConstr(quicksum(hydrogen_productions[t] for t in range(HOURS_PER_DAY)) >= self.h_min,
                                      name="min_hydrogen")
+
+        # deterministic_plan.addConstrs(
+        #     (forward_bids[t] + hydrogen_productions[t] == max(0, min(self.forecasted_prod[t + offset], self.max_wind))
+        #      for t
+        #      in range(HOURS_PER_DAY)), name="bidding")
 
         deterministic_plan.setParam('OutputFlag', 0)
         deterministic_plan.setParam('NumericFocus', 1)

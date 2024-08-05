@@ -16,7 +16,8 @@ class HAPDModel(TrainableModel):
                          p_h_max=p_h_max,
                          h_min=h_min)
 
-    def load(self, model_name):
+    @staticmethod
+    def load(model_name):
         model_dir = os.path.join(RESULTS_DIR, model_name)
         if not os.path.exists(model_dir):
             raise FileNotFoundError(f"No model found with name {model_name}.")
