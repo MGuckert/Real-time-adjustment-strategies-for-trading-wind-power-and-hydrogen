@@ -1,3 +1,5 @@
+import json
+
 from gurobipy import Model, GRB, quicksum
 
 from models.TrainableModel import TrainableModel
@@ -6,35 +8,6 @@ from utils.utils import get_forward_24, get_hydro_24
 
 
 class HAPDModel(TrainableModel):
-    """
-    HAPDModel class for the Hourly Architecture, 3 Price Domains Model.
-
-    Args:
-        name (str): Name of the model.
-        test_start_index (int): Start index of the test period.
-        datafile (str): Path to the data file.
-        nominal_wind (float): Nominal wind power.
-        max_wind (float): Maximum wind power.
-        p_h_max (float): Maximum hydrogen production.
-        h_min (float): Minimum hydrogen production.
-
-    Attributes:
-        name (str): Name of the model.
-        test_start_index (int): Start index of the test period.
-        nominal_wind (float): Nominal wind power.
-        max_wind (float): Maximum wind power.
-        p_h_max (float): Maximum hydrogen production.
-        h_min (float): Minimum hydrogen production.
-        weights (DataFrame): Weights of the model.
-        trained (bool): Flag for training.
-
-    Methods:
-        get_initial_plan(training_length): Get the initial plan.
-        train(training_length, save): Train the model.
-        evaluate(eval_length, fm): Evaluate the model.
-        get_schedule_from_weights(schedule_length, fm): Get the schedule.
-        summary(): Print the summary.
-    """
 
     def __init__(self, name, test_start_index=12 * HOURS_PER_MONTH, datafile=DATAFILE, nominal_wind=NOMINAL_WIND,
                  max_wind=NOMINAL_WIND, p_h_max=P_H_MAX,
@@ -42,6 +15,15 @@ class HAPDModel(TrainableModel):
         super().__init__(name, test_start_index, datafile=datafile, nominal_wind=nominal_wind, max_wind=max_wind,
                          p_h_max=p_h_max,
                          h_min=h_min)
+
+    @staticmethod
+    def load(model_name):
+        model_dir = os.path.join(RESULTS_DIR, model_name)
+        if not os.path.exists(model_dir):
+            raise FileNotFoundError(f"No model found with name {model_name}.")
+        with open(os.path.join(model_dir, "config.json"), "r") as f:
+            config = json.load(f)
+        return HAPDModel(**config)
 
     def compute_optimal_weights(self, training_length):
 

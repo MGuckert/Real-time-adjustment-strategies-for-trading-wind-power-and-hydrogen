@@ -2,6 +2,13 @@ import numpy as np
 import pandas as pd
 import os
 
+# Flags for results
+ORIGINAL = "original"
+BEST = "best_adj"
+RULE = "rule_based_adj"
+NAIVE_MPC = "naive_mpc_adj"
+STOCHASTIC_MPC = "stochastic_mpc_adj"
+
 # Constants
 HOURS_PER_DAY = 24  # 24 hours
 HOURS_PER_WEEK = 168  # 7 days
@@ -25,11 +32,11 @@ PENALTY = 80.61  # Value equal to the 95% quantile of the buy prices
 TOP_DOMAIN = 53.32  # 90%
 
 # Main datafile
-DATAFILE = "../data/2020_data.csv"
+DATAFILE = "../data/2022_2023/2022_2023_data.csv"
 
-ROLLING_FORECASTS_FILE = "../forecasting/rolling_forecasts_2021_2022.csv"
+ROLLING_FORECASTS_FILE = "../forecasting/rolling_forecasts_2019_2020.csv"
 
-RESULTS_DIR = os.path.join(os.getcwd(), "../results/2020_python")
+RESULTS_DIR = os.path.join(os.getcwd(), "../results/models")
 
 Q_FORECAST_CALCULATED = [12.195654545757634, 0.5299454470522954, 1.2367673427003123, -0.5444726493505923,
                          4.9381332869069965]

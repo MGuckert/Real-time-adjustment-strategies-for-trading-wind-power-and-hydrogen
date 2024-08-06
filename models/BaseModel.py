@@ -1,12 +1,17 @@
 import copy
 import json
-from abc import ABC
+from abc import ABC, abstractmethod
+
+import numpy as np
+from matplotlib import pyplot as plt
 
 from utils.DataLoader import DataLoader
 from utils.Result import Result
 from utils.real_time_adjustment_utils import *
 import gurobipy as gp
 from gurobipy import GRB
+
+from utils.stochastic_optimization import generate_scenario
 
 
 class BaseModel(ABC):
@@ -51,25 +56,14 @@ class BaseModel(ABC):
             Q_FORECAST_CALCULATED[i] * self.x.iloc[t, i] for i in range(self.n_features - 1)) + Q_INTERCEPT_CALCULATED,
                       prices_F[t]) for t in range(len(prices_F))]
 
-        prices_B, prices_S, prices_F, prices_forecast, features, features_red, realized, forecasted_prod = self.data_loader.build_all(
+        prices_SB, prices_F, prices_forecast, features, features_red, realized, forecasted_prod = self.data_loader.build_all(
             self.nominal_wind)
-        self.prices_B = prices_B
-        self.prices_S = prices_S
+        self.single_balancing_prices = prices_SB
         self.prices_F = prices_F
         self.prices_forecast = prices_forecast
         self.realized = realized
         self.forecasted_prod = forecasted_prod
         self.rolling_forecasts = self.data_loader.load_rolling_forecasts(self.nominal_wind)
-        self.single_balancing_prices = self.data_loader.build_single_balancing_price()
-
-    @staticmethod
-    def load_from_config(model_name, model_class):
-        model_dir = os.path.join(RESULTS_DIR, model_name)
-        if not os.path.exists(model_dir):
-            raise FileNotFoundError(f"No model found with name {model_name}.")
-        with open(os.path.join(model_dir, "config.json"), "r") as f:
-            config = json.load(f)
-        return model_class(**config)
 
     def save_results(self, results, flag=""):
         results_dict = results.__dict__
@@ -118,15 +112,15 @@ class BaseModel(ABC):
             model = gp.Model('Hindsight')
 
             # Variables
-            p_adj = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
-            settlements = model.addMVar(shape=(HOURS_PER_DAY,), vtype=GRB.CONTINUOUS, name='settlements',
+            p_adj = model.addVars(HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+            settlements = model.addVars(HOURS_PER_DAY, vtype=GRB.CONTINUOUS, name='settlements',
                                         lb=-GRB.INFINITY, ub=GRB.INFINITY)
 
             # Objective
             model.setObjective(
-                compute_objective_single_price_fixed_bids(t, idx_start, HOURS_PER_DAY, p_adj, settlements, forward_bids,
-                                                          self.prices_F,
-                                                          self.single_balancing_prices),
+                compute_objective_fixed_bids(t, idx_start, HOURS_PER_DAY, p_adj, settlements, forward_bids,
+                                             self.prices_F,
+                                             self.single_balancing_prices),
                 GRB.MAXIMIZE)
 
             # Constraints
@@ -174,11 +168,12 @@ class BaseModel(ABC):
 
         return results
 
-    def rule_based_adjustment(self, results, printing=False):
+    def rule_based_adjustment(self, results, info_on_current_hour=True, printing=False):
         """
         Perform complete evaluation for upwards and downwards adjustment performed on a given model.
 
         Args:
+            info_on_current_hour: If True, the model has information on the current hour. Defaults to True.
             results: Results of the model.
             printing (bool, optional): If True, prints adjustments. Defaults to False.
 
@@ -210,21 +205,22 @@ class BaseModel(ABC):
             forward_bid = results.forward_bids[i]
             h_prod = results.hydrogen_productions[i]
 
-            d = self.realized[t] - forward_bid
-
-            opt_h = get_hydro_opt(self.single_balancing_prices[t],self.p_h_max)
+            if info_on_current_hour:
+                opt_h = get_hydro_opt(self.single_balancing_prices[t], self.p_h_max)
+            else:
+                opt_h = get_hydro_opt(self.single_balancing_prices[t - 1], self.p_h_max)
 
             if opt_h > h_prod:
                 if printing:
                     print(f"i={i}, method 1: We changed from {h_prod} to {opt_h}")
                 h_adj = opt_h
             else:
-                remaining_hours = 23 - hour_of_day
-                if hour_of_day == 23:
+                remaining_hours = HOURS_PER_DAY - hour_of_day
+                if hour_of_day == HOURS_PER_DAY:
                     remaining_planned = 0
                 else:
                     remaining_planned = np.sum(
-                        [results.hydrogen_productions[i + j] for j in range(remaining_hours + 1)])
+                        [results.hydrogen_productions[i + j] for j in range(remaining_hours)])
                 surplus = daily_count + remaining_planned - min_production
                 wanted = h_prod - opt_h
                 if surplus >= wanted:
@@ -247,7 +243,7 @@ class BaseModel(ABC):
             )
 
             forward_bids.append(forward_bid)
-            deviations.append(d)
+            deviations.append(self.realized[t] - forward_bid)
             h_prods.append(h_adj)
             settlements.append(settlement)
             missing_productions.append(missing_production)
@@ -285,24 +281,27 @@ class BaseModel(ABC):
                 model = gp.Model('Real Time Adjustment')
 
                 # Variables
-                p_adj = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
-                settlements = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='settlements',
+                p_adj = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                settlements = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='settlements',
                                             lb=-GRB.INFINITY,
                                             ub=GRB.INFINITY)
 
                 # Objective
                 model.setObjective(
-                    compute_objective_single_price_fixed_bids(t, idx_start, hours_left, p_adj, settlements,
-                                                              forward_bids, self.prices_F,
-                                                              self.single_balancing_prices), GRB.MAXIMIZE)
+                    compute_objective_fixed_bids(t, idx_start, hours_left, p_adj, settlements,
+                                                 forward_bids, self.prices_F,
+                                                 self.single_balancing_prices), GRB.MAXIMIZE)
 
                 # Constraints
                 model.addConstr(self.h_min <= p_adj.sum() + daily_count, 'Daily Production')
 
-                model.addConstr(settlements[0] == self.realized[t] - forward_bids[t - idx_start] - p_adj[0], 'settlement')
-                for j in range(1,hours_left):
+                model.addConstr(settlements[0] == self.realized[t] - forward_bids[t - idx_start] - p_adj[0],
+                                'settlement')
+                for j in range(1, hours_left):
                     k = t + j
-                    model.addConstr(settlements[j] == self.rolling_forecasts[t][j] - forward_bids[k - idx_start] - p_adj[j], 'settlement')
+                    model.addConstr(
+                        settlements[j] == self.rolling_forecasts[t][j] - forward_bids[k - idx_start] - p_adj[j],
+                        'settlement')
 
                 model.setParam('OutputFlag', 0)
                 model.optimize()
@@ -336,7 +335,7 @@ class BaseModel(ABC):
 
             if verbose:
                 print(f"Time {t}:")
-                print(f"  Prices: {self.prices_B[t]}, {self.prices_S[t]}, {self.prices_F[t]}")
+                print(f"  Prices: {self.single_balancing_prices[t]}, {self.prices_F[t]}")
                 print(f"  Forward Bid: {forward_bids[t]}")
                 print(f"  Realized: {self.realized[t]}")
                 print(f"  Adjustment: {h_adj}")
@@ -347,9 +346,9 @@ class BaseModel(ABC):
 
         return results
 
-    def MPC_adjustment_with_DA_forecasts(self, results, verbose=False):
-        day_ahead_forecasts = self.x['production_FC'].to_numpy()
-
+    def MPC_adjustment_with_naive_balancing_forecasts(self, results, lag, rolling_forecasts=False,
+                                                      info_on_current_hour=True,
+                                                      verbose=False):
         results = copy.deepcopy(results)
 
         idx_start = self.test_start_index
@@ -357,7 +356,7 @@ class BaseModel(ABC):
 
         forward_bids = results.forward_bids
 
-        deviations, h_prods, settlements, objectives, missing_productions = [], [], [], [], []
+        deviations, h_prods, settlements_list, objectives, missing_productions = [], [], [], [], []
         missing_production = daily_count = 0
 
         for t in range(idx_start, idx_end):
@@ -376,26 +375,42 @@ class BaseModel(ABC):
                 model = gp.Model('Real Time Adjustment')
 
                 # Variables
-                p_adj = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
-                settlements = model.addMVar(shape=(hours_left,), vtype=GRB.CONTINUOUS, name='settlements',
+                p_adj = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                settlements = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='settlements',
                                             lb=-GRB.INFINITY,
                                             ub=GRB.INFINITY)
 
-                # Objective
-                model.setObjective(
-                    compute_objective_single_price_fixed_bids(t, idx_start, hours_left, p_adj, settlements,
-                                                              forward_bids, self.prices_F,
-                                                              self.single_balancing_prices), GRB.MAXIMIZE)
+                if rolling_forecasts:
+                    model.setObjective(
+                        compute_objective_fixed_bids_naive_balancing_prices(t, idx_start, hours_left, p_adj,
+                                                                            settlements,
+                                                                            forward_bids, self.prices_F,
+                                                                            self.single_balancing_prices,
+                                                                            lag=hours_left,
+                                                                            info_on_current_hour=info_on_current_hour),
+                        GRB.MAXIMIZE)
+                else:
+                    model.setObjective(
+                        compute_objective_fixed_bids_naive_balancing_prices(t, idx_start, hours_left, p_adj,
+                                                                            settlements,
+                                                                            forward_bids, self.prices_F,
+                                                                            self.single_balancing_prices, lag,
+                                                                            info_on_current_hour=info_on_current_hour),
+                        GRB.MAXIMIZE)
 
                 # Constraints
                 model.addConstr(self.h_min <= p_adj.sum() + daily_count, 'Daily Production')
 
-                model.addConstr(settlements[0] == self.realized[t] - forward_bids[t - idx_start] - p_adj[0],
-                                'settlement')
+                if info_on_current_hour:
+                    model.addConstr(settlements[0] == self.realized[t] - forward_bids[t - idx_start] - p_adj[0],
+                                    'settlement')
+                else:
+                    model.addConstr(settlements[0] == self.forecasted_prod[t] - forward_bids[t - idx_start] - p_adj[0],
+                                    'settlement')
                 for j in range(1, hours_left):
                     k = t + j
                     model.addConstr(
-                        settlements[j] == day_ahead_forecasts[k] - forward_bids[k - idx_start] - p_adj[j],
+                        settlements[j] == self.forecasted_prod[k] - forward_bids[k - idx_start] - p_adj[j],
                         'settlement')
 
                 model.setParam('OutputFlag', 0)
@@ -409,7 +424,10 @@ class BaseModel(ABC):
                 h_adj = np.maximum(0, np.minimum(self.p_h_max, p_adj[0].X))
 
             else:
-                h_adj = get_hydro_opt(self.single_balancing_prices, self.p_h_max)
+                if info_on_current_hour:
+                    h_adj = get_hydro_opt(self.single_balancing_prices[t], self.p_h_max)
+                else:
+                    h_adj = get_hydro_opt(self.single_balancing_prices[t - 1], self.p_h_max)
 
             daily_count += h_adj
             settlement = self.realized[t] - forward_bid - h_adj
@@ -423,20 +441,250 @@ class BaseModel(ABC):
 
             deviations.append(d)
             h_prods.append(h_adj)
-            settlements.append(settlement)
+            settlements_list.append(settlement)
             missing_productions.append(missing_production)
             objectives.append(obj_val)
             missing_production = 0
 
             if verbose:
                 print(f"Time {t}:")
-                print(f"  Prices: {self.prices_B[t]}, {self.prices_S[t]}, {self.prices_F[t]}")
-                print(f"  Forward Bid: {forward_bids[t]}")
+                print(f"  Prices: {self.single_balancing_prices[t]}, {self.prices_F[t]}")
+                print(f"  Forward Bid: {forward_bid}")
                 print(f"  Realized: {self.realized[t]}")
                 print(f"  Adjustment: {h_adj}")
                 print(f"  Settlement: {settlement}")
                 print(f"  Objective Value: {obj_val}")
 
-        results = Result(forward_bids, deviations, h_prods, settlements, missing_productions, objectives)
+        results = Result(forward_bids, deviations, h_prods, settlements_list, missing_productions, objectives)
+
+        return results
+
+    def stochastic_MPC_adjustment(self, results, transition_matrices, arma_model_up, arma_model_dw, epsilon,
+                                  prices_diff, balancing_states, verbose=False, num_scenarios=10):
+
+        results = copy.deepcopy(results)
+
+        arma_model_up = copy.deepcopy(arma_model_up)
+        arma_model_dw = copy.deepcopy(arma_model_dw)
+
+        idx_start = self.test_start_index
+        idx_end = idx_start + len(results.forward_bids)
+
+        forward_bids = results.forward_bids
+
+        deviations, h_prods, settlements_list, objectives, missing_productions = [], [], [], [], []
+        missing_production = daily_count = 0
+
+        for t in range(idx_start, idx_end):
+            i = t % 24
+            if i == 0 and t != idx_start:
+                if verbose:
+                    print(f"Day {t // 24} of {(idx_end - idx_start) // 24} done")
+                missing_production = max(self.h_min - daily_count, 0)
+                daily_count = 0
+
+            forward_bid = forward_bids[t - idx_start]
+            d = self.realized[t] - forward_bid
+            hours_left = 24 - i
+
+            scenario_balancing_prices = np.zeros((num_scenarios, hours_left))
+            initial_state = 0 if self.single_balancing_prices[t - 1] < self.prices_F[t - 1] else (
+                2 if self.single_balancing_prices[t - 1] > self.prices_F[t - 1] else 1)
+            initial_hour = (t - 1) % 24
+            for s in range(num_scenarios):
+                scenario_balancing_prices[s] = generate_scenario(hours_left, initial_state, initial_hour,
+                                                                 transition_matrices, copy.deepcopy(arma_model_up),
+                                                                 copy.deepcopy(arma_model_dw),
+                                                                 epsilon, prices_diff[t:t + hours_left],
+                                                                 balancing_states[t:t + hours_left])
+                scenario_balancing_prices[s] = self.prices_F[t:t + hours_left] - scenario_balancing_prices[s]
+            # plt.figure()
+            # plt.plot(scenario_balancing_prices[0, :],linestyle='--', label='Scenario 1',color='blue')
+            # plt.plot(self.prices_F[t:t + hours_left], label='Forward Prices',color='red')
+            # plt.plot(self.single_balancing_prices[t:t + hours_left], linestyle='--', label='Real balancing prices',color='green')
+            # plt.legend()
+            # plt.show()
+
+            if daily_count < self.h_min:
+                # Generate scenarios
+
+                model = gp.Model('Stochastic Real Time Adjustment')
+
+                # Variables
+                p_adj = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                settlements = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='settlements',
+                                            lb=-GRB.INFINITY, ub=GRB.INFINITY)
+
+                p_adj = np.array([p_adj[j] for j in range(hours_left)])
+                settlements = np.array([settlements[j] for j in range(hours_left)])
+
+                # Set the objective to maximize the expected objective across scenarios
+                model.setObjective(
+                    compute_objective_fixed_bids_balancing_prices_forecasts(hours_left, p_adj,
+                                                                            settlements,
+                                                                            scenario_balancing_prices),
+                    GRB.MAXIMIZE)
+
+                # Constraints
+                model.addConstr(self.h_min <= p_adj.sum() + daily_count, 'Daily Production')
+
+                for s in range(num_scenarios):
+                    for j in range(hours_left):
+                        k = t + j
+                        model.addConstr(
+                            settlements[s, j] == self.forecasted_prod[k] - forward_bids[k - idx_start] - p_adj[j],
+                            f'settlement_scenario_{s, j}')
+
+                model.setParam('OutputFlag', 0)
+                model.optimize()
+
+                if model.status != GRB.OPTIMAL:
+                    if verbose:
+                        print(f"Optimization failed at {t}")
+                    break
+
+                h_adj = np.maximum(0, np.minimum(self.p_h_max, p_adj[0].X))
+
+            else:
+                expected_balancing_price = np.mean(scenario_balancing_prices[:, 0])
+                h_adj = get_hydro_opt(expected_balancing_price, self.p_h_max)
+
+            if balancing_states[t] == 0:
+                arma_model_dw.update(np.log(prices_diff[t] + epsilon))
+            elif balancing_states[t] == 2:
+                arma_model_up.update(np.log(-prices_diff[t] + epsilon))
+
+            daily_count += h_adj
+            settlement = self.realized[t] - forward_bid - h_adj
+
+            obj_val = (
+                    forward_bid * self.prices_F[t]
+                    + PRICE_H * h_adj
+                    + settlement * self.single_balancing_prices[t]
+                    - missing_production * PENALTY
+            )
+
+            deviations.append(d)
+            h_prods.append(h_adj)
+            settlements_list.append(settlement)
+            missing_productions.append(missing_production)
+            objectives.append(obj_val)
+            missing_production = 0
+
+            if verbose:
+                print(f"Time {t}:")
+                print(f"  Prices: {self.single_balancing_prices[t]}, {self.prices_F[t]}")
+                print(f"  Forward Bid: {forward_bid}")
+                print(f"  Realized: {self.realized[t]}")
+                print(f"  Adjustment: {h_adj}")
+                print(f"  Settlement: {settlement}")
+                print(f"  Objective Value: {obj_val}")
+
+        results = Result(forward_bids, deviations, h_prods, settlements_list, missing_productions, objectives)
+
+        return results
+
+    def stochastic_MPC_adjustment_load_scenarios(self, results,
+                                                 scenarios_file='../results/stochastic_optimization/100_balancing_prices_scenarios_year.npy',
+                                                 verbose=False, num_scenarios=10):
+
+        results = copy.deepcopy(results)
+
+        scenarios = np.load(scenarios_file)
+
+        idx_start = self.test_start_index
+        idx_end = idx_start + len(results.forward_bids)
+
+        forward_bids = results.forward_bids
+
+        deviations, h_prods, settlements_list, objectives, missing_productions = [], [], [], [], []
+        missing_production = daily_count = 0
+
+        for t in range(idx_start, idx_end):
+            i = t % 24
+            if i == 0 and t != idx_start:
+                if verbose:
+                    print(f"Day {t // 24} of {(idx_end - idx_start) // 24} done")
+                missing_production = max(self.h_min - daily_count, 0)
+                daily_count = 0
+
+            forward_bid = forward_bids[t - idx_start]
+            d = self.realized[t] - forward_bid
+            hours_left = 24 - i
+
+            # Sample s scenarios without replacement
+            scenario_indices = np.random.choice(scenarios.shape[1], num_scenarios, replace=False)
+            scenario_balancing_prices = scenarios[t - idx_start, scenario_indices, :]
+
+            if daily_count < self.h_min:
+                # Generate scenarios
+
+                model = gp.Model('Robust Real Time Adjustment')
+
+                # Variables
+                p_adj = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                settlements = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='settlements',
+                                            lb=-GRB.INFINITY, ub=GRB.INFINITY)
+
+                p_adj = np.array([p_adj[j] for j in range(hours_left)])
+                settlements = np.array([settlements[j] for j in range(hours_left)])
+
+                # Set the objective to maximize the expected objective across scenarios
+                model.setObjective(
+                    compute_objective_fixed_bids_balancing_prices_forecasts(hours_left, p_adj,
+                                                                            settlements,
+                                                                            scenario_balancing_prices),
+                    GRB.MAXIMIZE)
+
+                # Constraints
+                model.addConstr(self.h_min <= p_adj.sum() + daily_count, 'Daily Production')
+
+                for j in range(hours_left):
+                    k = t + j
+                    model.addConstr(
+                        settlements[j] == self.forecasted_prod[k] - forward_bids[k - idx_start] - p_adj[j],
+                        f'settlement_scenario_{j}')
+
+                model.setParam('OutputFlag', 0)
+                model.optimize()
+
+                if model.status != GRB.OPTIMAL:
+                    if verbose:
+                        print(f"Optimization failed at {t}")
+                    break
+
+                h_adj = np.maximum(0, np.minimum(self.p_h_max, p_adj[0].X))
+
+            else:
+                expected_balancing_price = np.mean(scenario_balancing_prices[:, 0])
+                h_adj = get_hydro_opt(expected_balancing_price, self.p_h_max)
+
+            daily_count += h_adj
+            settlement = self.realized[t] - forward_bid - h_adj
+
+            obj_val = (
+                    forward_bid * self.prices_F[t]
+                    + PRICE_H * h_adj
+                    + settlement * self.single_balancing_prices[t]
+                    - missing_production * PENALTY
+            )
+
+            deviations.append(d)
+            h_prods.append(h_adj)
+            settlements_list.append(settlement)
+            missing_productions.append(missing_production)
+            objectives.append(obj_val)
+            missing_production = 0
+
+            if verbose:
+                print(f"Time {t}:")
+                print(f"  Prices: {self.single_balancing_prices[t]}, {self.prices_F[t]}")
+                print(f"  Forward Bid: {forward_bid}")
+                print(f"  Realized: {self.realized[t]}")
+                print(f"  Adjustment: {h_adj}")
+                print(f"  Settlement: {settlement}")
+                print(f"  Objective Value: {obj_val}")
+
+        results = Result(forward_bids, deviations, h_prods, settlements_list, missing_productions, objectives)
 
         return results

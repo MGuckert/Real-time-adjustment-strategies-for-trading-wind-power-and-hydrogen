@@ -1,3 +1,5 @@
+import json
+
 from models.StaticModel import StaticModel
 from utils.real_time_adjustment_utils import *
 import gurobipy as gp
@@ -8,6 +10,15 @@ class HindsightModel(StaticModel):
     def __init__(self, name, test_start_index, datafile=DATAFILE, nominal_wind=NOMINAL_WIND, max_wind=NOMINAL_WIND,
                  p_h_max=P_H_MAX, h_min=H_MIN):
         super().__init__(name, test_start_index, datafile, nominal_wind, max_wind, p_h_max, h_min)
+
+    @staticmethod
+    def load(model_name):
+        model_dir = os.path.join(RESULTS_DIR, model_name)
+        if not os.path.exists(model_dir):
+            raise FileNotFoundError(f"No model found with name {model_name}.")
+        with open(os.path.join(model_dir, "config.json"), "r") as f:
+            config = json.load(f)
+        return HindsightModel(**config)
 
     def get_daily_plan(self, day_index):
 
@@ -23,9 +34,9 @@ class HindsightModel(StaticModel):
                                     ub=GRB.INFINITY)
         # Objective
         model.setObjective(
-            compute_objective_single_price_variable_bids(day_index, HOURS_PER_DAY, hydrogen_productions, settlements,
-                                                         forward_bids, self.prices_F,
-                                                         self.single_balancing_prices),
+            compute_objective_variable_bids(day_index, HOURS_PER_DAY, hydrogen_productions, settlements,
+                                            forward_bids, self.prices_F,
+                                            self.single_balancing_prices),
             GRB.MAXIMIZE)
 
         # Constraints
