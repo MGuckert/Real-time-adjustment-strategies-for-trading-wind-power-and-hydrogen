@@ -1,6 +1,10 @@
 import copy
 
 import numpy as np
+from matplotlib import pyplot as plt
+
+from models.HAPDModel import HAPDModel
+from utils.constants import HOURS_PER_DAY
 
 
 def build_hour_specific_transition_matrices(states, model_order=1):
@@ -56,3 +60,26 @@ def generate_scenario(num_steps, initial_state, initial_hour, transition_matrice
             arma_model_up.update(np.log(-prices_diff[i] + epsilon))
         hour = (hour + 1) % 24
     return prices
+
+
+def plot_scenarios(scenarios_file):
+    model = HAPDModel("hapd_hmin50")
+    scenarios = np.load(scenarios_file)
+
+    for hour in range(6):
+        plt.figure(figsize=(10, 6))
+        for i in range(20):
+            plt.scatter(range(HOURS_PER_DAY), scenarios[hour][i], edgecolors='w', s=50, alpha=0.5)
+            plt.plot(scenarios[hour][i], label='Scenario {}'.format(i + 1), linestyle='--', alpha=0.5)
+        plt.plot(model.single_balancing_prices[hour:HOURS_PER_DAY], label='Balancing prices', color='red')
+        plt.plot(model.prices_F[hour:HOURS_PER_DAY], label='Forward prices', color='red', linestyle='-.')
+        plt.xlabel('Hour', fontsize=12)
+        plt.ylabel('Price', fontsize=12)
+        plt.title('Markov models/ARIMA scenarios', fontsize=14, pad=20)
+        plt.xticks(fontsize=11)
+        plt.yticks(fontsize=11)
+        plt.grid(True, linestyle='--', alpha=0.6)
+        plt.tight_layout()
+        plt.legend(fontsize=10, loc='upper left')
+        plt.savefig(f'../plots/balancing_prices_forecast/scenario_examples_hour{hour}.png')
+        plt.show()

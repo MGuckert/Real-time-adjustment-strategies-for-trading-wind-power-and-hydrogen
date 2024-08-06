@@ -53,12 +53,6 @@ class DataLoader:
         return prices_SB, prices_F, prices_forecast, features, features_red, realized_prod, forecasted_prod
 
     @staticmethod
-    def load_production_forecasts() -> pd.Series:
-        fm_df = pd.read_csv("../results/2020_forecast_model.csv")
-        forecast_production = fm_df.loc[:, "forecast_production"]
-        return forecast_production
-
-    @staticmethod
     def load_rolling_forecasts(nominal_wind: int = NOMINAL_WIND) -> pd.DataFrame:
         """
         Load rolling forecasts from file. WARNING: The first month is not available as it is used for training (mock data has been added)
