@@ -11,7 +11,7 @@ from pmdarima import auto_arima
 from statsmodels.tools.sm_exceptions import ValueWarning
 
 from models.HAPDModel import HAPDModel
-from utils.constants import HOURS_PER_YEAR, HOURS_PER_MONTH, HOURS_PER_DAY, HOURS_PER_WEEK
+from utils.constants import HOURS_PER_YEAR, HOURS_PER_MONTH, HOURS_PER_DAY, HOURS_PER_WEEK, ORIGINAL
 from utils.stochastic_optimization import build_hour_specific_transition_matrices
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -33,7 +33,8 @@ def generate_scenario_2(num_steps, initial_state, initial_hour, transition_matri
         state_indexes = (np.argwhere(states == state) - 1).flatten()
         if len(state_indexes) == 0:
             continue
-        prices_diff[state_indexes] = np.exp(arma_model_dw.predict(n_periods=len(state_indexes))) - epsilon if state == 0 else (
+        prices_diff[state_indexes] = np.exp(
+            arma_model_dw.predict(n_periods=len(state_indexes))) - epsilon if state == 0 else (
             -np.exp(arma_model_up.predict(n_periods=len(state_indexes))) + epsilon if state == 2 else 0)
     return prices_diff
 
@@ -105,7 +106,7 @@ def generate_scenarios_whole_year_multiprocessing(model, transition_matrices, ar
 
 
 def generate_scenarios_whole_year_multiprocessing_2(model, transition_matrices, arma_model_up, arma_model_dw, epsilon,
-                                                  prices_diff, balancing_states, num_scenarios=1):
+                                                    prices_diff, balancing_states, num_scenarios=1):
     idx_start = model.test_start_index
     idx_end = idx_start + HOURS_PER_YEAR
 
@@ -130,6 +131,23 @@ def generate_scenarios_whole_year_multiprocessing_2(model, transition_matrices, 
 
             start = time.time()
 
+            if t != idx_start and t % HOURS_PER_MONTH == 0:
+                # Retrain the ARMA models
+                upwards_diff = dataframe['price_diff'][:t][dataframe['balancing_state'] == 2].apply(
+                    lambda x: np.log(-x + epsilon))
+                downwards_diff = dataframe['price_diff'][:t][dataframe['balancing_state'] == 0].apply(
+                    lambda x: np.log(x + epsilon))
+
+                arma_model_up = auto_arima(upwards_diff[-HOURS_PER_MONTH:])
+                arma_model_dw = auto_arima(downwards_diff[-HOURS_PER_MONTH:])
+                print("Retrained ARMA models at hour ", t - idx_start)
+                print("New model orders: ", arma_model_up.order, arma_model_dw.order)
+
+                # Update the transition matrices
+                transition_matrices = build_hour_specific_transition_matrices(
+                    dataframe['balancing_state'][:t].values,
+                    model_order=1)
+
             results = pool.starmap(generate_scenario_2, args, chunksize=num_scenarios)
             for j, result in enumerate(results):
                 scenarios[t - idx_start][j] = model.prices_F[t:t + HOURS_PER_DAY] - result
@@ -138,11 +156,8 @@ def generate_scenarios_whole_year_multiprocessing_2(model, transition_matrices, 
                 arma_model_dw.update(np.log(prices_diff[t] + epsilon))
             elif balancing_states[t] == 2:
                 arma_model_up.update(np.log(-prices_diff[t] + epsilon))
-
-            print("Execution time for hour ", t - idx_start, " is: ", time.time() - start)
     # Save the scenarios
-    np.save(f'../results/stochastic_optimization/100_balancing_prices_scenarios_year.npy', scenarios)
-
+    np.save(f'../results/stochastic_optimization/100_balancing_prices_scenarios_year_improved.npy', scenarios)
 
 
 if __name__ == '__main__':
@@ -166,29 +181,21 @@ if __name__ == '__main__':
         lambda x: np.log(x + epsilon))
 
     # Find the best ARMA parameters for each state
-    # arma_model_up = auto_arima(upwards_diff[-HOURS_PER_MONTH:])
-    # with open('arma_model_up.pkl', 'wb') as pkl:
-    #     pickle.dump(arma_model_up, pkl)
+    arma_model_up = auto_arima(upwards_diff[-HOURS_PER_MONTH:])
 
-    with open('arma_model_up.pkl', 'rb') as pkl:
-        arma_model_up = pickle.load(pkl)
+    arma_model_dw = auto_arima(downwards_diff[-HOURS_PER_MONTH:])
 
-    # arma_model_dw = auto_arima(downwards_diff[-HOURS_PER_MONTH:])
-    # with open('arma_model_dw.pkl', 'wb') as pkl:
-    #     pickle.dump(arma_model_dw, pkl)
+    print("Initial model orders: ", arma_model_up.order, arma_model_dw.order)
 
-    with open('arma_model_dw.pkl', 'rb') as pkl:
-        arma_model_dw = pickle.load(pkl)
-
-    hapd_model = HAPDModel.load('HAPD_model_22_23_hmin50_day')
-    results_hapd = hapd_model.evaluate(HOURS_PER_YEAR)
+    hapd_model = HAPDModel.load('hapd_hmin50')
+    results_hapd = hapd_model.load_results(flag=ORIGINAL)
 
     transition_matrices = build_hour_specific_transition_matrices(dataframe['balancing_state'][:HOURS_PER_YEAR].values,
                                                                   model_order=1)
 
     generate_scenarios_whole_year_multiprocessing_2(hapd_model, transition_matrices, copy.deepcopy(arma_model_up),
-                                                  copy.deepcopy(arma_model_dw),
-                                                  epsilon,
-                                                  dataframe['price_diff'].values, balancing_states, num_scenarios=100)
+                                                    copy.deepcopy(arma_model_dw),
+                                                    epsilon,
+                                                    dataframe['price_diff'].values, balancing_states, num_scenarios=100)
 
     print("Total execution time: ", time.time() - initial_time)
