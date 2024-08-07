@@ -520,9 +520,9 @@ class BaseModel(ABC):
 
                 # Set the objective to maximize the expected objective across scenarios
                 model.setObjective(
-                    compute_objective_fixed_bids_balancing_prices_forecasts(hours_left, p_adj,
-                                                                            settlements,
-                                                                            scenario_balancing_prices),
+                    compute_objective_fixed_bids_balancing_prices_forecasts_scenarios(hours_left, p_adj,
+                                                                                      settlements,
+                                                                                      scenario_balancing_prices),
                     GRB.MAXIMIZE)
 
                 # Constraints
@@ -613,8 +613,8 @@ class BaseModel(ABC):
             hours_left = 24 - i
 
             # Sample s scenarios without replacement
-            scenario_indices = np.random.choice(scenarios.shape[1], num_scenarios, replace=False)
-            scenario_balancing_prices = scenarios[t - idx_start, scenario_indices, :]
+            scenarios_indices = np.random.choice(scenarios.shape[1], num_scenarios, replace=False)
+            balancing_prices_scenarios = scenarios[t - idx_start, scenarios_indices, :]
 
             if daily_count < self.h_min:
                 # Generate scenarios
@@ -631,9 +631,9 @@ class BaseModel(ABC):
 
                 # Set the objective to maximize the expected objective across scenarios
                 model.setObjective(
-                    compute_objective_fixed_bids_balancing_prices_forecasts(hours_left, p_adj,
-                                                                            settlements,
-                                                                            scenario_balancing_prices),
+                    compute_objective_fixed_bids_balancing_prices_forecasts_scenarios(hours_left, p_adj,
+                                                                                      settlements,
+                                                                                      balancing_prices_scenarios),
                     GRB.MAXIMIZE)
 
                 # Constraints
@@ -656,7 +656,117 @@ class BaseModel(ABC):
                 h_adj = np.maximum(0, np.minimum(self.p_h_max, p_adj[0].X))
 
             else:
-                expected_balancing_price = np.mean(scenario_balancing_prices[:, 0])
+                expected_balancing_price = np.mean(balancing_prices_scenarios[:, 0])
+                h_adj = get_hydro_opt(expected_balancing_price, self.p_h_max)
+
+            daily_count += h_adj
+            settlement = self.realized[t] - forward_bid - h_adj
+
+            obj_val = (
+                    forward_bid * self.prices_F[t]
+                    + PRICE_H * h_adj
+                    + settlement * self.single_balancing_prices[t]
+                    - missing_production * PENALTY
+            )
+
+            deviations.append(d)
+            h_prods.append(h_adj)
+            settlements_list.append(settlement)
+            missing_productions.append(missing_production)
+            objectives.append(obj_val)
+            missing_production = 0
+
+            if verbose:
+                print(f"Time {t}:")
+                print(f"  Prices: {self.single_balancing_prices[t]}, {self.prices_F[t]}")
+                print(f"  Forward Bid: {forward_bid}")
+                print(f"  Realized: {self.realized[t]}")
+                print(f"  Adjustment: {h_adj}")
+                print(f"  Settlement: {settlement}")
+                print(f"  Objective Value: {obj_val}")
+
+        results = Result(forward_bids, deviations, h_prods, settlements_list, missing_productions, objectives)
+
+        return results
+
+    def stochastic_MPC_adjustment_load_scenarios_worst_case_scenario(self, results,
+                                                                     scenarios_file='../results/stochastic_optimization/100_balancing_prices_scenarios_year.npy',
+                                                                     verbose=False, num_scenarios=10):
+
+        results = copy.deepcopy(results)
+
+        scenarios = np.load(scenarios_file)
+
+        idx_start = self.test_start_index
+        idx_end = idx_start + len(results.forward_bids)
+
+        forward_bids = results.forward_bids
+
+        deviations, h_prods, settlements_list, objectives, missing_productions = [], [], [], [], []
+        missing_production = daily_count = 0
+
+        for t in range(idx_start, idx_end):
+            i = t % 24
+            if i == 0 and t != idx_start:
+                if verbose:
+                    print(f"Day {t // 24} of {(idx_end - idx_start) // 24} done")
+                missing_production = max(self.h_min - daily_count, 0)
+                daily_count = 0
+
+            forward_bid = forward_bids[t - idx_start]
+            d = self.realized[t] - forward_bid
+            hours_left = 24 - i
+
+            # Sample s scenarios without replacement
+            scenario_indices = np.random.choice(scenarios.shape[1], num_scenarios, replace=False)
+            balancing_prices_scenarios = scenarios[t - idx_start, scenario_indices, :]
+
+            if daily_count < self.h_min:
+                # Generate scenarios
+
+                model = gp.Model('Robust Real Time Adjustment')
+
+                # Variables
+                p_adj = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='p_adj', lb=0.0, ub=self.p_h_max)
+                settlements = model.addVars(hours_left, vtype=GRB.CONTINUOUS, name='settlements',
+                                            lb=-GRB.INFINITY, ub=GRB.INFINITY)
+                min_objective = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, name='min_objective')
+
+                p_adj = np.array([p_adj[j] for j in range(hours_left)])
+                settlements = np.array([settlements[j] for j in range(hours_left)])
+
+                # Set the objective to maximize the expected objective across scenarios
+                model.setObjective(min_objective, GRB.MAXIMIZE)
+
+                # Constraints
+                model.addConstr(self.h_min <= p_adj.sum() + daily_count, 'Daily Production')
+
+                for j in range(hours_left):
+                    k = t + j
+                    model.addConstr(
+                        settlements[j] == self.forecasted_prod[k] - forward_bids[k - idx_start] - p_adj[j],
+                        f'settlement_scenario_{j}')
+
+                for s in range(num_scenarios):
+                    model.addConstr(
+                        min_objective <= compute_objective_fixed_bids_balancing_prices_forecasts_single_scenario(hours_left,
+                                                                                                           p_adj,
+                                                                                                           settlements,
+                                                                                                           balancing_prices_scenarios[
+                                                                                                               s]))
+
+                model.setParam('OutputFlag', 0)
+                model.optimize()
+
+                if model.status != GRB.OPTIMAL:
+                    if verbose:
+                        print(f"Optimization failed at {t}")
+                    break
+
+                h_adj = np.maximum(0, np.minimum(self.p_h_max, p_adj[0].X))
+
+            else:
+                expected_balancing_price = np.mean(balancing_prices_scenarios[:, 0])
                 h_adj = get_hydro_opt(expected_balancing_price, self.p_h_max)
 
             daily_count += h_adj

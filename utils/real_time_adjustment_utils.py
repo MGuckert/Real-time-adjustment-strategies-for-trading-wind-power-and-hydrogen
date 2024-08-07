@@ -34,12 +34,20 @@ def compute_objective_fixed_bids_naive_balancing_prices(t, idx_start, hours_left
                         for i in range(hours_left))
 
 
-def compute_objective_fixed_bids_balancing_prices_forecasts(hours_left, p_adj, settlements,
-                                                            scenario_balancing_prices):
+def compute_objective_fixed_bids_balancing_prices_forecasts_scenarios(hours_left, p_adj, settlements,
+                                                                     balancing_prices_scenarios):
     objective = gp.LinExpr()
     objective.addTerms([PRICE_H] * hours_left, p_adj)
-    for i in range(len(scenario_balancing_prices)):
-        objective.addTerms(scenario_balancing_prices[i][:hours_left] / len(scenario_balancing_prices), settlements)
+    for i in range(len(balancing_prices_scenarios)):
+        objective.addTerms(balancing_prices_scenarios[i][:hours_left] / len(balancing_prices_scenarios), settlements)
+    return objective
+
+
+def compute_objective_fixed_bids_balancing_prices_forecasts_single_scenario(hours_left, p_adj, settlements,
+                                                                            balancing_prices_scenario):
+    objective = gp.LinExpr()
+    objective.addTerms([PRICE_H] * hours_left, p_adj)
+    objective.addTerms(balancing_prices_scenario[:hours_left], settlements)
     return objective
 
 
