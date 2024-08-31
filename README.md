@@ -1,4 +1,4 @@
-# Real-time adjustment strategies for trading hydrogen
+# Real-time adjustment strategies for trading wind power and hydrogen
 
 The new class-based code for the feature-driven models can be found in the models package.
 
